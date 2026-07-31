@@ -23,6 +23,45 @@ import java.lang.reflect.Field;
  */
 final class ColumnPerlin {
 
+    /**
+     * {@code MathHelper.grad} as a coefficient table instead of a 16-way switch.
+     *
+     * <p>The library compiles to a jump table indexed by four bits of a permutation
+     * value, taken eight times per sample. The index is effectively random, so the
+     * indirect branch mispredicts nearly every time, and a mispredict costs more than
+     * the add it is guarding.
+     *
+     * <p>Exact, not merely equivalent. Every case is a sum of two of the three
+     * coordinates with unit signs, so the table holds 0 and +/-1: multiplying by 1.0
+     * or -1.0 reproduces {@code dload} and {@code dneg} bit for bit, {@code a - b} is
+     * defined as {@code a + (-b)}, and addition is commutative for the two cases the
+     * library writes the other way round. The one difference is the unused third
+     * coordinate contributing a signed zero, which can only alter the result if the
+     * other two terms are both exactly zero at once.
+     */
+    private static final double[] GX = new double[16];
+    private static final double[] GY = new double[16];
+    private static final double[] GZ = new double[16];
+
+    static {
+        int[][] g = {
+            {1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0},
+            {1, 0, 1}, {-1, 0, 1}, {1, 0, -1}, {-1, 0, -1},
+            {0, 1, 1}, {0, -1, 1}, {0, 1, -1}, {0, -1, -1},
+            {1, 1, 0}, {0, -1, 1}, {-1, 1, 0}, {0, -1, -1},
+        };
+        for (int h = 0; h < 16; h++) {
+            GX[h] = g[h][0];
+            GY[h] = g[h][1];
+            GZ[h] = g[h][2];
+        }
+    }
+
+    private static double grad(int hash, double x, double y, double z) {
+        int h = hash & 15;
+        return GX[h] * x + GY[h] * y + GZ[h] * z;
+    }
+
     private static final Field PERMUTATIONS;
 
     static {
@@ -101,14 +140,14 @@ final class ColumnPerlin {
         int m = (p[i + 1 & 255] & 255) + sz;
         int n = (p[j + 1 & 255] & 255) + sz;
 
-        double d0 = MathHelper.grad(p[k & 255] & 255, lx, ly, lz);
-        double d1 = MathHelper.grad(p[l & 255] & 255, lx1, ly, lz);
-        double d2 = MathHelper.grad(p[m & 255] & 255, lx, ly1, lz);
-        double d3 = MathHelper.grad(p[n & 255] & 255, lx1, ly1, lz);
-        double d4 = MathHelper.grad(p[k + 1 & 255] & 255, lx, ly, lz1);
-        double d5 = MathHelper.grad(p[l + 1 & 255] & 255, lx1, ly, lz1);
-        double d6 = MathHelper.grad(p[m + 1 & 255] & 255, lx, ly1, lz1);
-        double d7 = MathHelper.grad(p[n + 1 & 255] & 255, lx1, ly1, lz1);
+        double d0 = grad(p[k & 255] & 255, lx, ly, lz);
+        double d1 = grad(p[l & 255] & 255, lx1, ly, lz);
+        double d2 = grad(p[m & 255] & 255, lx, ly1, lz);
+        double d3 = grad(p[n & 255] & 255, lx1, ly1, lz);
+        double d4 = grad(p[k + 1 & 255] & 255, lx, ly, lz1);
+        double d5 = grad(p[l + 1 & 255] & 255, lx1, ly, lz1);
+        double d6 = grad(p[m + 1 & 255] & 255, lx, ly1, lz1);
+        double d7 = grad(p[n + 1 & 255] & 255, lx1, ly1, lz1);
 
         return MathHelper.lerp3(fadeX, MathHelper.smoothStep(local), fadeZ,
                 d0, d1, d2, d3, d4, d5, d6, d7);
