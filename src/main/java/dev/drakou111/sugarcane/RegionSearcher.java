@@ -670,6 +670,7 @@ public final class RegionSearcher {
 
         /** UNDERGROUND_ORES then VEGETAL_DECORATION for one chunk, as the game does. */
         private void decorate(int chunkX, int chunkZ) {
+            world.setDecoratingChunk(chunkX, chunkZ);
             long decorationSeed = random.setDecorationSeed(seed, chunkX * CHUNK, chunkZ * CHUNK);
             runDirtBlobs(decorationSeed, chunkX, chunkZ);
             runDisks(decorationSeed, chunkX, chunkZ);
@@ -708,14 +709,22 @@ public final class RegionSearcher {
                     while (world.getBlock(c.x(), base - 1, c.z()) == Blocks.SUGAR_CANE) {
                         base--;
                     }
-                    int localX = c.x() - chunkX * CHUNK;
-                    int localZ = c.z() - chunkZ * CHUNK;
-                    boolean interior = localX >= 4 && localX <= 11 && localZ >= 4 && localZ <= 11;
-                    stats.hits.incrementAndGet();
-                    System.out.printf(
-                            "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d  %s%n",
-                            seed, c.x(), base, c.z(), height, biome, chunkX, chunkZ,
-                            interior ? "interior" : "margin (order-dependent)");
+                    // Only the part one chunk built by itself is real. A column two
+                    // chunks cooperated on collapses to its base run when the game
+                    // decorates them the other way round, and the game's order depends
+                    // on how the world was loaded, not on the seed.
+                    int solid = world.caneRunFromOneChunk(c.x(), base, c.z());
+                    if (solid >= report) {
+                        stats.hits.incrementAndGet();
+                        System.out.printf(
+                                "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d%n",
+                                seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ);
+                    } else {
+                        System.out.printf(
+                                "cross-chunk seed %d  x=%d y=%d z=%d  height %d only with a "
+                                        + "neighbour's help, %d on its own - not verifiable%n",
+                                seed, c.x(), base, c.z(), height, solid);
+                    }
                     System.out.flush();
                 }
             }

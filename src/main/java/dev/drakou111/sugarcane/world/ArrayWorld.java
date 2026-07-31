@@ -19,6 +19,20 @@ public final class ArrayWorld implements BlockView {
     private final short[] heightmap;
     private final short[] oceanFloor;
 
+    /**
+     * Which chunk's decoration placed each cane block, packed x&lt;&lt;32|z.
+     *
+     * <p>A column built by two different chunks only exists if they decorate in the
+     * order we happened to simulate, and the real order depends on how the world was
+     * loaded — a pregenerated world and a forceload around the target do not agree.
+     * Cane is rare enough (about one column per thousand chunks) that recording every
+     * placement costs nothing measurable.
+     */
+    private final java.util.HashMap<Long, Integer> canePlacer = new java.util.HashMap<>();
+    private int decoratingChunk = NO_CHUNK;
+
+    private static final int NO_CHUNK = Integer.MIN_VALUE;
+
     public ArrayWorld(int minX, int minZ, int sizeX, int sizeZ) {
         this.minX = minX;
         this.minZ = minZ;
@@ -39,6 +53,42 @@ public final class ArrayWorld implements BlockView {
         Arrays.fill(blocks, Blocks.AIR);
         Arrays.fill(heightmap, (short) 0);
         Arrays.fill(oceanFloor, (short) 0);
+        canePlacer.clear();
+        decoratingChunk = NO_CHUNK;
+    }
+
+    /**
+     * Records whose decoration pass subsequent writes belong to. Call before running
+     * a chunk's features; pass {@link #NO_CHUNK} equivalent by not calling it at all
+     * for terrain, which places no cane.
+     */
+    public void setDecoratingChunk(int chunkX, int chunkZ) {
+        this.decoratingChunk = (chunkX << 16) ^ (chunkZ & 0xFFFF);
+    }
+
+    /**
+     * How much of the column at {@code x,baseY,z} one single chunk's decoration built.
+     *
+     * <p>This is the height that survives whatever order the game happens to decorate
+     * neighbouring chunks in: a taller column that needed two chunks to cooperate
+     * collapses back to this if they run the other way round. Returns the full height
+     * when one chunk did all the work.
+     */
+    public int caneRunFromOneChunk(int x, int baseY, int z) {
+        Integer owner = canePlacer.get(key(x, baseY, z));
+        if (owner == null) {
+            return 0;
+        }
+        int h = 0;
+        while (getBlock(x, baseY + h, z) == Blocks.SUGAR_CANE
+                && owner.equals(canePlacer.get(key(x, baseY + h, z)))) {
+            h++;
+        }
+        return h;
+    }
+
+    private static long key(int x, int y, int z) {
+        return ((long) x << 40) ^ ((long) (z & 0xFFFFFF) << 16) ^ (y & 0xFFFF);
     }
 
     public ArrayWorld copy() {
@@ -51,6 +101,9 @@ public final class ArrayWorld implements BlockView {
     public void restoreFrom(ArrayWorld source) {
         System.arraycopy(source.blocks, 0, blocks, 0, blocks.length);
         System.arraycopy(source.heightmap, 0, heightmap, 0, heightmap.length);
+        canePlacer.clear();
+        canePlacer.putAll(source.canePlacer);
+        decoratingChunk = source.decoratingChunk;
     }
 
     private boolean inside(int x, int z) {
@@ -77,6 +130,9 @@ public final class ArrayWorld implements BlockView {
         }
         int col = columnIndex(x, z);
         blocks[col * HEIGHT + y] = block;
+        if (block == Blocks.SUGAR_CANE && decoratingChunk != NO_CHUNK) {
+            canePlacer.put(key(x, y, z), decoratingChunk);
+        }
         // Keep both worldgen heightmaps consistent. Cane is not motion-blocking,
         // so the common case costs nothing.
         if (Blocks.isMotionBlocking(block)) {
