@@ -1,95 +1,85 @@
-# v1.0.1 — fewer false hits, working verification, 1.18x faster
+# v1.0.2 — 1.48x faster, and the bottleneck was a jump table
 
-A point release. The find, the mechanism and the interface are unchanged — see
-[v1.0](../../releases/tag/v1.0) for what this is. Two of the fixes below change
-results, so this replaces v1.0 rather than merely speeding it up.
+Performance only. No behaviour changes, no interface changes, still Java 21+, and
+every step is bit-exact — the benchmark reports the same chunks generated, chunks
+searched and cane columns as v1.0.1 throughout.
 
-## Fixed: hits that could not exist
+**13,279 → 19,608 chunks/s** on 24 threads. Measured interleaved
+base/variant/base/variant so machine drift cancels; three pairs, variance under
+0.3%.
 
-v1.0 reported a column whenever the simulated world ended up with one, even when
-two neighbouring chunks had cooperated to build it — one chunk laying the base and
-the other stacking on top. Such a column only exists if those chunks decorate in
-one particular order, and **that order is not a property of the seed**. It depends
-on how the world was loaded, and a pregenerated world and a forceload around the
-target do not agree.
+Compounded with v1.0.1 that is **1.75x since v1.0**.
 
-This is not theoretical. Seed `4505722117` was reported by v1.0 as five tall at
-`20 15 64` and comes back **three tall** in game. Chunk 1,4 placed only the top
-two blocks; the three below came from chunk 1,3 reaching over the border. Forcing
-the two orders on a real server gives five tall one way and three the other — and
-the spot sits inside the spawn pregeneration area, where the order is fixed by the
-server before any player exists.
+## The find that made it
 
-The searcher now tracks which chunk placed each cane block and reports only the run
-**one chunk built by itself**. Cross-chunk columns print as `cross-chunk` and are
-not hits. The confirmed find at `1500050556` is unaffected — it was always
-self-contained.
+Setting out to vectorise the eight gradient dot products per noise sample, the
+first step was reading what `MathHelper.grad` actually does. It is not a dot
+product. It is a 16-way `tableswitch` where every case is a single add:
 
-If you were running v1.0, some of your hits were unverifiable. Re-check them with
-`inspect`.
+```
+0: x+y   1: -x+y   2: x-y   3: -x-y     8: y+z    9: -y+z  10: y-z  11: -y-z
+4: x+z   5: -x+z   6: x-z   7: -x-z    12: y+x   13: -y+z  14: y-x  15: -y-z
+```
 
-## Fixed: `verify.py` reported every world as empty
+That compiles to a jump table indexed by four bits of a permutation value, taken
+**eight times per sample**, on an index that is effectively random. It mispredicts
+nearly every time, and a mispredict costs an order of magnitude more than the
+addition it guards. This was the single largest cost in the search, hiding inside
+what the profiler attributed to `Noise.lookup`.
 
-`out[name()] = payload(tt)` reads correctly and behaves wrongly: Python evaluates
-the right-hand side of an assignment before the subscript, so every NBT compound
-consumed its payload bytes as the tag name and the parse desynchronised
-immediately. `read_chunk` swallowed the resulting errors and returned `None`, so
-verification reported no chunk at all, for every input.
+A coefficient table replaces it:
 
-The bug arrived when the tools were split out to be standalone for v1.0, so the
-verification path in that release never worked. Earlier verifications in this
-project ran against the original script and were not affected.
+```java
+return GX[h] * x + GY[h] * y + GZ[h] * z;
+```
 
-## 1.18x faster
+**1.42x on its own**, and exact rather than merely equivalent: every case is a sum
+of two of the three coordinates with unit signs, multiplying by `1.0` or `-1.0`
+reproduces `dload` and `dneg` bit for bit, `a - b` is *defined* as `a + (-b)`, and
+the two cases the library writes reversed are commutative in IEEE754. The only
+divergence is the unused third coordinate contributing a signed zero, which can
+change a result only when the other two terms are both exactly zero at once.
 
-12,633 → 14,934 chunks/s, 24 threads, measured on an idle machine over 40-second
-runs. Output is identical throughout — same chunks generated, same chunks searched,
-same 666 cane columns.
+No SIMD was written. It now looks less attractive than it did: what remains per
+sample is three dependent permutation gathers and a lerp tree, and gathers are the
+thing SIMD does worst.
 
-| | chunks/s |
-|---|---|
-| v1.0 | 12,633 |
-| raw biome ids, flat noise caches | 13,219 |
-| biome layer cache 1024 → 4096 | 14,171 |
-| hoisted sampling constants and octave samplers | 14,934 |
+## Also in this release
 
-Biome lookups were 20% of the search. Most of that was not the lookups themselves
-but the wrapper: `getBiome` and `getBiomeForNoiseGen` both end in
-`Biomes.REGISTRY.get(Integer.valueOf(id))`, and every caller here took `.getId()`
-straight back off the result. The layers underneath are public and return the id
-directly. The two internal memo caches became flat arrays over the region instead
-of `HashMap<Long, …>`.
+**Column hoisting, 1.07x.** `sampleNoiseColumn` asks for 14 cell values at a single
+(x, z), and the library redid the whole lattice setup for each. `ColumnPerlin`
+computes the y-independent half once per octave per column: the x and z sections,
+their fractions and fades, and the two permutation lookups taken before the section
+y is added in.
 
-Enlarging the library's per-layer cache is worth 1.07x at 4096 entries — and
-**65536 entries is half the speed of stock**, because forty layers times 24 workers
-puts those tables in competition with the noise data for L2.
+**Tried and rejected**, recorded so nobody repeats it: inverting the loops so each
+octave sweeps the column hoists the same work, but moves the per-y accumulator from
+a register into an array, and the 224 extra read-modify-writes per column cost more
+than the hoisting saves.
 
-## New: `diag-all`
+## Verification
 
-Counts the stackable geometry without the ocean restriction, and counts it the way
-the game actually asks. The old diagnostic required a connected water face, which is
-stricter than the rule `RandomPatchFeature` applies — what is really needed is water
-beside two heights, 2 to 4 apart, not necessarily joined.
-
-The answer did not move: 37,000 land chunks, zero stackable spots either way,
-against ten times more *legal* spots per chunk than the ocean has. Every shoreline
-can start a column; none can supply the second water block.
-
-## Documentation
-
-`FINDINGS.md` gains five sections, all with the measurements behind them:
-
-- **6v** — the cross-chunk load-order experiment on a real server
-- **6w** — where the time goes, and why seed reversal cannot help: the rare
-  condition is the density field, and the reversible one admits 19% of seeds
-- **6x** — the relaxed water rule, tested on land
-- **6y** — ravine springs. They generate exactly the isolated water source this
-  needs, 50 attempts per chunk, and are dead only because
-  `addDefaultExtraVegetation` is called one line before `addDefaultSprings`
-- **6z** — what the projected 1.7x actually delivered, and the three places the
-  projection was wrong
+`TruncatedNoiseTest` compares whole generated columns against TerrainUtils and still
+reports **764 columns exact**. All 37 tests pass. The confirmed find at seed
+`1500050556` still reports as a five-tall hit.
 
 ## Upgrading
 
-Drop in the new `sugarcane.jar`. No interface changes, no new requirements —
-still Java 21+.
+Drop in the new `sugarcane.jar`. Nothing else changes.
+
+If you are coming from **v1.0** rather than v1.0.1, note that v1.0.1 carried two
+correctness fixes as well: hits are now only reported when a single chunk built the
+whole column (v1.0 could report cross-chunk columns that do not reproduce in game),
+and `verify.py` was fixed — an NBT parsing bug made it report every world as empty.
+See the v1.0.1 notes.
+
+## A note on measurement
+
+The column hoisting above was measured three times as a 10% *regression*, deleted,
+and only recovered because the reverted baseline then measured 11,367 chunks/s where
+it had measured 14,934 twenty minutes earlier. Minecraft had been launched
+mid-session.
+
+Runs minutes apart on a desktop are not comparable. Every figure in this release
+comes from alternating base and variant back to back. Absolute numbers under load
+are meaningless; ratios survive.
