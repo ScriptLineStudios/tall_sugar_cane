@@ -65,7 +65,7 @@ pregeneration rather than by anything a player can do. Those print as
 - **mode** — `diag` counts geometry, `probe:N` measures the hit probability,
   `spots` prints the coordinates of the rare terrain the search hunts for.
 
-Expect very roughly **one hit per 3 hours** on 24 cores at ~15,000 chunks/s, of
+Expect very roughly **one hit per 2 hours** on 24 cores at ~19,000 chunks/s, of
 which about half are 6 or taller. That rate is a projection from the measured
 geometry and RNG rates, not yet a long-run observation.
 

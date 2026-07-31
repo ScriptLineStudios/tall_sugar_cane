@@ -1504,6 +1504,12 @@ whole search lives or dies on the order of two lines in a biome constructor.
 
 ## 6z. The 1.7x that was really 1.18x
 
+> **Superseded in part by 6aa.** The conclusion below — that the noise had no
+> cheap structural win left — was wrong, and wrong for an instructive reason. It
+> reasons about the Perlin *lattice*, where reuse really is limited, and never
+> looks at what `grad` compiles to. A coefficient table in place of its switch
+> later measured 1.42x on its own.
+
 Section 6w projected ~1.7x from the profile. Built, measured against the same
 20,000-seed run on an otherwise idle machine, results identical throughout (666
 cane columns, tallest 4): **12,633 -> 14,934 chunks/s, 1.18x**.
@@ -1548,6 +1554,71 @@ uncertain payoff, not a tidy-up.
 
 Run-to-run variance on a 13-second benchmark is about 4%, which is larger than
 two of the steps above. Every number here is from a 40-second run.
+
+## 6aa. The bottleneck was a jump table, not arithmetic
+
+Setting out to vectorise the eight gradient dot products per sample, the first
+step was reading what `MathHelper.grad` actually does. It is not a dot product.
+It is a 16-way `tableswitch`, each case a single add:
+
+```
+0: x+y   1: -x+y   2: x-y   3: -x-y     8: y+z    9: -y+z  10: y-z  11: -y-z
+4: x+z   5: -x+z   6: x-z   7: -x-z    12: y+x   13: -y+z  14: y-x  15: -y-z
+```
+
+That compiles to a jump table indexed by four bits of a permutation value, and it
+is taken **eight times per sample**. The index is effectively random, so the
+indirect branch mispredicts nearly every time, and a mispredict costs an order of
+magnitude more than the addition it is guarding. This was the single largest cost
+in the search, sitting inside what the profiler attributed to `Noise.lookup`.
+
+The replacement is a coefficient table:
+
+```java
+return GX[h] * x + GY[h] * y + GZ[h] * z;
+```
+
+**Exact, not merely equivalent.** Every case is a sum of two of the three
+coordinates with unit signs, so the table holds 0 and ±1. Multiplying by `1.0` or
+`-1.0` reproduces `dload` and `dneg` bit for bit; `a - b` is *defined* as
+`a + (-b)`; and the two cases the library writes the other way round (`y + x`) are
+commutative in IEEE754. The only divergence is the unused third coordinate
+contributing a signed zero, which can change the result only when the other two
+terms are both exactly zero at once, and `TruncatedNoiseTest` still reports 764
+columns exact against TerrainUtils.
+
+Measured interleaved, three pairs: **6,626 → 9,435 chunks/s, 1.42x**, identical
+output.
+
+The other change in the same round: `ColumnPerlin` hoists each octave's x/z
+lattice work — the sections, fractions, fades and the two permutation lookups
+taken before the section y is added in — out of the 14 cell values that share a
+column. Interleaved, 12,170 → 13,017, **1.07x**. Inverting the loops so each
+octave sweeps the column instead hoists the same work but moves the per-y
+accumulator from a register into an array, and the 224 extra read-modify-writes
+per column cost more than the hoisting saves: 13,441 against 14,934. Rejected.
+
+Total since v1.0, every step bit-exact: about **12,600 → 19,200 chunks/s, 1.5x**.
+
+Two lessons, both of which cost time here:
+
+**Read the callee before declaring a hot path irreducible.** Section 6z reasoned
+carefully about the Perlin lattice and concluded there was nothing left. The
+reasoning was sound and the conclusion was wrong, because the cost was not in the
+lattice arithmetic at all. A profiler naming a method tells you where the time
+goes, never why.
+
+**Interleave A/B on a machine you do not control.** The column hoisting above was
+measured three times as ~10% slower, deleted, and only recovered because the
+reverted baseline then measured 11,367 where it had measured 14,934 twenty minutes
+earlier. Minecraft had been launched mid-session. Runs minutes apart are not
+comparable; alternating base/variant/base/variant is, and it is what every number
+in this section and 6aa comes from. Absolute figures under load are meaningless,
+ratios survive.
+
+SIMD remains untried and now looks less attractive: what is left per sample is
+three dependent permutation gathers and a lerp tree, and gathers are the thing
+SIMD does worst.
 
 ## 7. Watch out for
 
