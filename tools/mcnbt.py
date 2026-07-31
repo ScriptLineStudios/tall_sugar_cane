@@ -52,7 +52,11 @@ def read_nbt(f):
                 tt = u1()
                 if tt == 0:
                     return out
-                out[name()] = payload(tt)
+                # Read the name before the payload. Python evaluates the right-hand
+                # side of an assignment first, so `out[name()] = payload(tt)` would
+                # consume the payload bytes as the name.
+                key = name()
+                out[key] = payload(tt)
         if t == 11:
             return [i4() for _ in range(i4())]
         if t == 12:
