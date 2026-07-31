@@ -1370,6 +1370,67 @@ than labelling border columns and letting them through. We search at chunk radiu
 decoration order is fixed by the spawn spiral and no load pattern can change it.
 A cross-chunk column there is not a risky hit — it is an unavailable one.
 
+## 6w. Where the time actually goes, and why reversal cannot take it
+
+JFR profile of a live search, 14,538 samples, aggregated by top frame:
+
+| | share | what |
+|---|---|---|
+| `Noise.lookup` | 46.6% | Perlin gradient lookups, 16 octaves for the limits, 8 for the selector |
+| `IntLayerCache.get` + `HashMap.*` | 20.4% | biome lookups, **all of them inside terrain generation** |
+| carvers | 10.8% | `carveSphere`, `genTunnel`, `hasWater`, `carveBlock`, `genCanyon` |
+| `ArrayWorld.setBlock` / `setNoiseColumn` | 7.7% | writing the block array |
+| everything else | ~14% | surface builder, disks, ore blobs, the cane feature |
+
+Attributing the HashMap traffic by caller puts 522 samples under
+`TruncatedNoise.cellBiome` and 517 under `TruncatedNoise.noiseColumn`, against 9
+in the biome source proper. 1.16 blends `getDepthAndScale` over a 9x9 biome
+neighbourhood per noise cell, so each cell costs tens of layer-cache lookups
+through a `HashMap` with boxed keys. That is the cheapest large win on the table:
+a flat per-region biome array feeding the noise directly should recover most of
+20%, for about **1.25x**, with no change to results.
+
+### Why no amount of reversal helps
+
+The chain is `worldSeed -> low 48 bits -> {noise permutation tables, carver
+seeds, decoration seed}`. Reversal in the seedfinding sense inverts **LCG output
+constraints** — that is how structure seeds, slime chunks and decorator seeds all
+fall. Our two conditions sit on opposite sides of that line:
+
+- The **RNG condition** (two cane invocations able to stack) is on the LCG layer
+  and genuinely reversible — but it is not rare. Section 6u measures 19% for the
+  cane pair and 44.9% for the carver envelope, and making the cane filter sound
+  pushes it higher, not lower. Reversing a condition that 1 seed in 5 already
+  satisfies buys nothing.
+- The **terrain condition** is rare — 1.3e-3 of ocean chunks — but it is decided
+  by the density field: 16 octaves of interpolated Perlin gradients over
+  permutation tables built by a Fisher-Yates shuffle. There is no linear structure
+  to invert and no published technique for it.
+
+**The rare part is not reversible and the reversible part is not rare.** That is
+the whole answer, and it is why 6t and 6u both came out negative from different
+directions.
+
+The one framing that escapes this is "fix the spot, reverse the RNG onto it,
+forward-check terrain at that single position". It fails on the check: knowing
+whether one block is air beside water needs the carvers that reach it, and 6u
+measured a terrain-free carver walk at 68 us against 110 us for generating the
+entire real chunk. The thing you would jump to costs 60% of the thing you are
+avoiding, before any lattice work.
+
+### What is left, ranked
+
+1. **Flat biome array for the noise** — ~1.25x, low risk, bit-exact.
+2. **Vectorise the octave loop** across noise cells with the Vector API. Lanes are
+   independent cells, so the per-cell summation order is untouched and the result
+   stays bit-exact. Guess 1.2-1.35x overall.
+3. **Cheaper block writes** — 7.7% in `setBlock`, much of it heightmap maintenance
+   that the search reads only at cane time.
+
+Realistic combined ceiling is somewhere near **1.7x**. Nothing here changes the
+shape of the problem: the search is bounded by evaluating a noise field that
+cannot be predicted, only computed.
+
 ## 7. Watch out for
 
 - `nextInt(1)` is called twice per try (yspread is 0). It always returns 0 but
