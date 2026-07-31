@@ -76,6 +76,9 @@ public final class TruncatedNoise {
     private final double yScale;
     private final double xzStep;
     private final double yStep;
+    private final ColumnPerlin[] mainColumn = new ColumnPerlin[8];
+    private final ColumnPerlin[] minColumn = new ColumnPerlin[16];
+    private final ColumnPerlin[] maxColumn = new ColumnPerlin[16];
     private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] mainOctaves;
     private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] minOctaves;
     private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] maxOctaves;
@@ -121,12 +124,15 @@ public final class TruncatedNoise {
         this.mainOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[8];
         for (int i = 0; i < 8; i++) {
             mainOctaves[i] = main.getOctave(i);
+            mainColumn[i] = new ColumnPerlin(mainOctaves[i]);
         }
         this.minOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[16];
         this.maxOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[16];
         for (int i = 0; i < 16; i++) {
             minOctaves[i] = minLimit.getOctave(i);
             maxOctaves[i] = maxLimit.getOctave(i);
+            minColumn[i] = new ColumnPerlin(minOctaves[i]);
+            maxColumn[i] = new ColumnPerlin(maxOctaves[i]);
         }
     }
 
@@ -282,6 +288,8 @@ public final class TruncatedNoise {
         double biomeScale = depthAndScale[1];
         double randomOffset = randomDensityOffset(x, z);
 
+        beginColumns(x, z);
+
         for (int y = from; y <= to; y++) {
             double noise = sampleNoise(x, y, z);
             double fallOff = 1.0 - (double) y * 2.0 / (double) noiseSizeY + randomOffset;
@@ -316,15 +324,32 @@ public final class TruncatedNoise {
      * the result — and cuts the average from 40 octave evaluations to about 26.
      * {@code TruncatedNoiseTest} still checks every block against TerrainUtils.
      */
+    /** Every octave's x/z lattice state for one column, shared by its 14 y values. */
+    private void beginColumns(int x, int z) {
+        double persistence = 1.0;
+        for (int octave = 0; octave < 8; octave++) {
+            mainColumn[octave].beginColumn(
+                    MathHelper.maintainPrecision((double) x * xzStep * persistence),
+                    MathHelper.maintainPrecision((double) z * xzStep * persistence));
+            persistence /= 2.0;
+        }
+        persistence = 1.0;
+        for (int octave = 0; octave < 16; octave++) {
+            double cellX = MathHelper.maintainPrecision((double) x * xzScale * persistence);
+            double cellZ = MathHelper.maintainPrecision((double) z * xzScale * persistence);
+            minColumn[octave].beginColumn(cellX, cellZ);
+            maxColumn[octave].beginColumn(cellX, cellZ);
+            persistence /= 2.0;
+        }
+    }
+
     private double sampleNoise(int x, int y, int z) {
         // The selector, eight octaves.
         double mainNoise = 0.0;
         double persistence = 1.0;
         for (int octave = 0; octave < 8; octave++) {
-            mainNoise += mainOctaves[octave].sample(
-                    MathHelper.maintainPrecision((double) x * xzStep * persistence),
+            mainNoise += mainColumn[octave].sampleY(
                     MathHelper.maintainPrecision((double) y * yStep * persistence),
-                    MathHelper.maintainPrecision((double) z * xzStep * persistence),
                     yStep * persistence, (double) y * yStep * persistence) / persistence;
             persistence /= 2.0;
         }
@@ -337,17 +362,13 @@ public final class TruncatedNoise {
         double maxNoise = 0.0;
         persistence = 1.0;
         for (int octave = 0; octave < 16; octave++) {
-            double cellX = MathHelper.maintainPrecision((double) x * xzScale * persistence);
             double cellY = MathHelper.maintainPrecision((double) y * yScale * persistence);
-            double cellZ = MathHelper.maintainPrecision((double) z * xzScale * persistence);
             double sy = yScale * persistence;
             if (needMin) {
-                minNoise += minOctaves[octave].sample(cellX, cellY, cellZ, sy,
-                        (double) y * sy) / persistence;
+                minNoise += minColumn[octave].sampleY(cellY, sy, (double) y * sy) / persistence;
             }
             if (needMax) {
-                maxNoise += maxOctaves[octave].sample(cellX, cellY, cellZ, sy,
-                        (double) y * sy) / persistence;
+                maxNoise += maxColumn[octave].sampleY(cellY, sy, (double) y * sy) / persistence;
             }
             persistence /= 2.0;
         }
