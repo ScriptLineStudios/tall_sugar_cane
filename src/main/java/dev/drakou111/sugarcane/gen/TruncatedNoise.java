@@ -67,6 +67,19 @@ public final class TruncatedNoise {
     private final double densityOffset;
     private final int noiseSizeY;
     /**
+     * Sampling constants and the per-octave samplers, hoisted out of
+     * {@link #sampleNoise}. That method runs once per cell value — a few million
+     * times a second — and was re-reading the settings and re-indexing the octave
+     * arrays on every call.
+     */
+    private final double xzScale;
+    private final double yScale;
+    private final double xzStep;
+    private final double yStep;
+    private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] mainOctaves;
+    private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] minOctaves;
+    private final kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[] maxOctaves;
+    /**
      * Noise columns and biome depth/scale per cell, over the region being generated.
      *
      * <p>These were {@code HashMap<Long, ...>}. The hit rate was already good — the
@@ -100,6 +113,20 @@ public final class TruncatedNoise {
             this.noiseSizeY = (int) read(generator, "noiseSizeY");
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("TerrainUtils internals changed", e);
+        }
+        this.xzScale = 684.412 * settings.samplingSettings.xzScale;
+        this.yScale = 684.412 * settings.samplingSettings.yScale;
+        this.xzStep = xzScale / settings.samplingSettings.xzFactor;
+        this.yStep = yScale / settings.samplingSettings.yFactor;
+        this.mainOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[8];
+        for (int i = 0; i < 8; i++) {
+            mainOctaves[i] = main.getOctave(i);
+        }
+        this.minOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[16];
+        this.maxOctaves = new kaptainwutax.noiseutils.perlin.PerlinNoiseSampler[16];
+        for (int i = 0; i < 16; i++) {
+            minOctaves[i] = minLimit.getOctave(i);
+            maxOctaves[i] = maxLimit.getOctave(i);
         }
     }
 
@@ -290,16 +317,11 @@ public final class TruncatedNoise {
      * {@code TruncatedNoiseTest} still checks every block against TerrainUtils.
      */
     private double sampleNoise(int x, int y, int z) {
-        double xzScale = 684.412 * settings.samplingSettings.xzScale;
-        double yScale = 684.412 * settings.samplingSettings.yScale;
-        double xzStep = xzScale / settings.samplingSettings.xzFactor;
-        double yStep = yScale / settings.samplingSettings.yFactor;
-
         // The selector, eight octaves.
         double mainNoise = 0.0;
         double persistence = 1.0;
         for (int octave = 0; octave < 8; octave++) {
-            mainNoise += main.getOctave(octave).sample(
+            mainNoise += mainOctaves[octave].sample(
                     MathHelper.maintainPrecision((double) x * xzStep * persistence),
                     MathHelper.maintainPrecision((double) y * yStep * persistence),
                     MathHelper.maintainPrecision((double) z * xzStep * persistence),
@@ -320,11 +342,11 @@ public final class TruncatedNoise {
             double cellZ = MathHelper.maintainPrecision((double) z * xzScale * persistence);
             double sy = yScale * persistence;
             if (needMin) {
-                minNoise += minLimit.getOctave(octave).sample(cellX, cellY, cellZ, sy,
+                minNoise += minOctaves[octave].sample(cellX, cellY, cellZ, sy,
                         (double) y * sy) / persistence;
             }
             if (needMax) {
-                maxNoise += maxLimit.getOctave(octave).sample(cellX, cellY, cellZ, sy,
+                maxNoise += maxOctaves[octave].sample(cellX, cellY, cellZ, sy,
                         (double) y * sy) / persistence;
             }
             persistence /= 2.0;
