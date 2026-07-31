@@ -1431,6 +1431,48 @@ Realistic combined ceiling is somewhere near **1.7x**. Nothing here changes the
 shape of the problem: the search is bounded by evaluating a noise field that
 cannot be predicted, only computed.
 
+## 6x. The water does not have to be a face — and it changes nothing
+
+A suggestion worth testing: a water lake at the base and a single water source
+block four higher inside a ravine. The premise is right, and sharper than how this
+file had been describing the geometry.
+
+`RandomPatchFeature` takes `vec3i = mutableBlockPos.below()` and applies
+`needWater` to *its* four horizontal neighbours. `canSurvive` short-circuits to
+true on cane-below, but `needWater` is a separate clause that still runs. So a
+stack needs water beside **y0-1** and again beside **y0+h1-1** — two heights
+exactly h1 apart, h1 being 2, 3 or 4. They need not be connected, and the blocks
+between need not be air, because `ColumnPlacer` overwrites upward
+unconditionally. "Lake at the base, one source block four higher" is the h1=4
+case exactly.
+
+`stackableSpots` only ever tested the connected h1=2 case, so it undercounts.
+`stackableRelaxed` tests what the game tests. Measured with `diag-all`, which
+drops the ocean restriction:
+
+| | chunks | legal spots/chunk | stackable | relaxed |
+|---|---|---|---|---|
+| oceans only | 14,000 | 0.235 | 1.57e-3 | 1.64e-3 |
+| every biome | 51,000 | 2.54 | 4.30e-4 | 4.49e-4 |
+
+The relaxation buys 4% in the ocean, where the carver geometry is a real face and
+h1=2 already works. On land it buys nothing at all: the 22 strict and 23 relaxed
+spots in the all-biome run are the same ocean spots, so **37,000 land chunks
+produced zero stackable spots under the rule the game actually uses**. With
+section 5c's earlier 25,000 that is 62,000 land chunks and no spot.
+
+Land has **ten times more legal spots per chunk** than the ocean — every shoreline
+offers somewhere a first column could start. What it never has is the second
+water block. Nothing in 1.16 puts an isolated source above the flat water line
+near a legal spot: springs are registered after the cane in the same step, lakes
+are sealed by their boundary pass and flat-topped regardless, the noise sea fill
+is flat at y=62 by construction, and the only carvers that *write* water are the
+underwater pair, registered for ocean biomes only.
+
+So the ocean restriction in `isSearchableOcean` survives the stricter test, and
+for the reason 5c gave: the underwater carvers are the only generator in the game
+that leaves water at two separated heights beside a spot cane can start from.
+
 ## 7. Watch out for
 
 - `nextInt(1)` is called twice per try (yspread is 0). It always returns 0 but

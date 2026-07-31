@@ -78,6 +78,13 @@ public final class RegionSearcher {
      * stream only parts company with the terrain at a successful placement, so the
      * trace is what shows where a simulated chunk diverged from the real one.
      */
+    /**
+     * Diagnostic only ("diag-all"): drop the ocean restriction so the geometry can
+     * be counted on land as well. FINDINGS 5c justified searching oceans only, using
+     * a spot definition that turned out stricter than the game's.
+     */
+    static boolean allBiomes = false;
+
     static int traceChunkX = Integer.MIN_VALUE;
     static int traceChunkZ = Integer.MIN_VALUE;
 
@@ -112,6 +119,7 @@ public final class RegionSearcher {
         // cane feature over that many synthetic decoration seeds. Measures P.
         final int probeTrials = args.length > 5 && args[5].startsWith("probe:")
                 ? Integer.parseInt(args[5].substring("probe:".length())) : 0;
+        allBiomes = args.length > 5 && args[5].equals("diag-all");
         final boolean diagnose = probeTrials > 0
                 || (args.length > 5 && args[5].startsWith("diag"))
                 || (args.length > 5 && args[5].equals("spots"));
@@ -180,6 +188,15 @@ public final class RegionSearcher {
          */
         final AtomicLong stackableSpots = new AtomicLong();
         /**
+         * The same question asked the way the game actually asks it. A stack needs
+         * {@code needWater} to pass at the soil, and again at the top of the first
+         * column — two heights exactly h1 apart, h1 being 2, 3 or 4. They do not have
+         * to be joined, and the blocks between do not have to be air, because
+         * {@code ColumnPlacer} overwrites upward unconditionally. {@link #stackableSpots}
+         * tests only the connected h1=2 case and so undercounts.
+         */
+        final AtomicLong stackableRelaxed = new AtomicLong();
+        /**
          * Spots and chunks per biome. Ocean biomes that share depth and scale make
          * identical terrain and register identical carvers, so any difference here
          * is the surface configuration: CONFIG_GRASS floors deep water in gravel,
@@ -229,10 +246,13 @@ public final class RegionSearcher {
                                 (double) e.getValue()[1] / Math.max(1, e.getValue()[0])));
             }
             if (legalSpots.get() > 0 || stackableSpots.get() > 0) {
-                System.out.printf("legal spots %d (%.2e/chunk), stackable %d (%.2e/chunk)%n",
+                System.out.printf("legal spots %d (%.2e/chunk), stackable %d (%.2e/chunk), "
+                                + "stackable relaxed %d (%.2e/chunk)%n",
                         legalSpots.get(), (double) legalSpots.get() / Math.max(1, chunksSearched.get()),
                         stackableSpots.get(),
-                        (double) stackableSpots.get() / Math.max(1, chunksSearched.get()));
+                        (double) stackableSpots.get() / Math.max(1, chunksSearched.get()),
+                        stackableRelaxed.get(),
+                        (double) stackableRelaxed.get() / Math.max(1, chunksSearched.get()));
             }
             long spots = spotsOnFloorTop.get() + spotsInside.get();
             if (spots > 0) {
@@ -378,7 +398,8 @@ public final class RegionSearcher {
                 for (int lz = 0; lz < region; lz++) {
                     int cx = chunkX0 + lx, cz = chunkZ0 + lz;
                     int biome = biomes.getBiomeForNoiseGen(cx * 4 + 2, 0, cz * 4 + 2).getId();
-                    if (isSearchableOcean(biome) && BiomeCaneConfig.hasSugarCane(biome)) {
+                    if ((allBiomes || isSearchableOcean(biome))
+                            && BiomeCaneConfig.hasSugarCane(biome)) {
                         candidate[regionIndex(lx, lz)] = true;
                         any = true;
                     }
@@ -743,7 +764,7 @@ public final class RegionSearcher {
          * has to run.
          */
         private int countGeometry(int chunkX, int chunkZ) {
-            int legal = 0, stackable = 0;
+            int legal = 0, stackable = 0, relaxed = 0;
             for (int x = chunkX * CHUNK; x < chunkX * CHUNK + CHUNK; x++) {
                 for (int z = chunkZ * CHUNK; z < chunkZ * CHUNK + CHUNK; z++) {
                     for (int y = 1; y < SEA + 8; y++) {
@@ -753,6 +774,16 @@ public final class RegionSearcher {
                         legal++;
                         // The shortest first column is 2 tall, so the water face
                         // has to reach at least soil+2 for anything to stack.
+                        // What the game needs: air where the second column starts,
+                        // and water beside the block under it. h1 is whatever the
+                        // first column's ColumnPlacer draws.
+                        for (int h1 = 2; h1 <= 4; h1++) {
+                            if (world.isAir(x, y + h1, z)
+                                    && SugarCaneFeature.hasWaterBeside(world, x, y + h1 - 1, z)) {
+                                relaxed++;
+                                break;
+                            }
+                        }
                         if (world.isAir(x, y + 1, z) && world.isAir(x, y + 2, z)
                                 && SugarCaneFeature.hasWaterBeside(world, x, y + 1, z)) {
                             stackable++;
@@ -782,6 +813,7 @@ public final class RegionSearcher {
             }
             stats.legalSpots.addAndGet(legal);
             stats.stackableSpots.addAndGet(stackable);
+            stats.stackableRelaxed.addAndGet(relaxed);
             return stackable;
         }
 
