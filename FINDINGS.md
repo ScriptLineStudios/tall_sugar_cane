@@ -1337,6 +1337,39 @@ actually hold the geometry. The missing factor of a hundred is the noise density
 field deciding whether a sphere carves anything, and that is a different generator
 which the carver seeds say nothing about.
 
+## 6v. Cross-chunk columns are real, and still worthless near spawn
+
+Seed 4505722117 reported a 5-tall at 20,15,64 and came back 3 tall in game. The
+trace showed chunk 1,4 placing only the top two blocks, at y=18 and 19; the three
+below came from chunk **1,3** reaching over the border, since a placement lands
+within ±4 of an origin drawn inside its own chunk and z=64 is the first block of
+chunk 4. `canSurvive` returns true the moment the block below is cane, so 1,4's
+placement at y=18 succeeds if and only if 1,3 has already run.
+
+Forced the question with a real server. Move `SpawnX/SpawnZ` far away, delete the
+six chunks around the target so they regenerate, then forceload in stages:
+
+| stages | column at 20,15,64 |
+|---|---|
+| chunk 1,3 alone, then 1,4 | **5 tall, y=15..19** |
+| chunk 1,4 alone, then 1,3 | 3 tall |
+| both as one forceload box | 5 tall |
+
+So the column is genuine and the simulator's raster order was right. But in an
+untouched world it is unreachable: spawn for this seed is x=-4 z=236, chunk
+-1,14, and the server pregenerates a radius of 11 chunks around it. The target at
+chunk 1,4 is exactly 10 away, so **both chunks are decorated during "Preparing
+spawn area"**, before a player exists. The spiral radiates outward from spawn and
+reaches 1,4 (distance 10) before 1,3 (distance 11) — it approaches from the south,
+which is the losing direction. Four different forceload strategies afterwards all
+returned 3, because by then the chunks were already `full`.
+
+This is why the searcher now scores only the run one chunk built by itself rather
+than labelling border columns and letting them through. We search at chunk radius
+6, so hits sit near 0,0 and usually inside the spawn pregeneration, where the
+decoration order is fixed by the spawn spiral and no load pattern can change it.
+A cross-chunk column there is not a risky hit — it is an unavailable one.
+
 ## 7. Watch out for
 
 - `nextInt(1)` is called twice per try (yspread is 0). It always returns 0 but

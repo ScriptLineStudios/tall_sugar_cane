@@ -46,11 +46,14 @@ java -jar target/sugarcane.jar inspect 1500050556 91 16 65 6
 A find prints as:
 
 ```
-HIT seed 1500050556  x=91 y=16 z=65  height 5  biome 48  chunk 5,4  margin (order-dependent)
+HIT seed 1500050556  x=91 y=16 z=65  height 5  biome 48  chunk 5,4
 ```
 
-`interior` hits are self-contained; `margin` hits can depend on the order
-neighbouring chunks were decorated in, so they are likelier to fail verification.
+The height reported is the run a **single chunk built by itself**. A column can
+also be built by two chunks cooperating across a border, but only if they decorate
+in one particular order, and near spawn that order is fixed by the server's spawn
+pregeneration rather than by anything a player can do. Those print as
+`cross-chunk` and are not hits — see FINDINGS 6v for the experiment.
 
 ### Search arguments
 
