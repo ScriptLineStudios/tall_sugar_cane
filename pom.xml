@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>dev.drakou111</groupId>
+    <artifactId>sugarcane</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.version>5.10.2</junit.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!--
+          KaptainWutax's biome generator: the seedfinding community's validated
+          reimplementation of Minecraft's biome layer stack. Reused rather than
+          rewritten - the 1.16.1 stack is ~20 layer types and getting any one of
+          them subtly wrong would silently corrupt the ocean prefilter.
+          It is still checked against real chunks by BiomeSourceValidator.
+          Dependencies are declared non-transitively upstream, so each is listed.
+        -->
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>BiomeUtils</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!-- Overworld terrain noise + surface builder, same reuse rationale. -->
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>TerrainUtils</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>MathUtils</artifactId>
+            <version>5531c4a87b0f1bb85d1dab2bdd18ce375400626a</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>SeedUtils</artifactId>
+            <version>b6a383113ce5d8d09a59e91b28ff064fb97c0709</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>MCUtils</artifactId>
+            <version>1e5785a648a04454461ef02ee27cbc63e3599bff</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.KaptainWutax</groupId>
+            <artifactId>NoiseUtils</artifactId>
+            <version>288e1b60e0f427bead80f001d19565ad1adcbd73</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>sugarcane</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+            <!--
+              Everything is bundled into one jar. The KaptainWutax dependencies come
+              from JitPack and their versions are fragile (see FINDINGS 6c), so a
+              self-contained jar is the difference between "clone and run" and
+              "debug someone else's dependency resolution".
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.2</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>dev.drakou111.sugarcane.Cli</mainClass>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

@@ -1,0 +1,67 @@
+### Build output ###
+target/
+build/
+out/
+*.class
+dependency-reduced-pom.xml
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Search output ###
+# Run logs are large, machine-specific, and regenerate on every run.
+*.log
+logs/
+
+### Verification artefacts ###
+# tools/verify.py copies a server jar into a throwaway world for each run, and the
+# pre-flood chunk exports are hundreds of megabytes. Neither belongs in the repo,
+# and a Minecraft server jar is not redistributable in any case.
+tools/run_*/
+tools/geom_*/
+tools/proto_*/
+*.bin
+server.jar
+minecraft_server*.jar
+*.mca
+eula.txt
+server.properties
+
+### JVM crash and profiling dumps ###
+hs_err_pid*.log
+replay_pid*.log
+*.jfr
+*.hprof
+
+### IDEs ###
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### Editors ###
+*.swp
+*~
+
+### OS ###
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Claude Code workspace ###
+.claude/
