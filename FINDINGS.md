@@ -123,7 +123,7 @@ noise → surface → CARVERS(air) → LIQUID_CARVERS
 | source | verdict |
 |---|---|
 | **Noise sea fill** | Below y=63 every non-solid block is water, flat top at y=62. No vertical face on its own — but it is the only water that **never gets a scheduled fluid tick**. |
-| **Water springs** | Dead. `addDefaultSprings` is registered *after* `addDesertExtraVegetation` in the same `VEGETAL_DECORATION` step, so springs do not exist yet when cane generates. |
+| **Water springs** | Dead, and it is the closest miss in the problem — see 6y. |
 | **Lakes** | Dead. `LakeFeature` has an explicit boundary pass: it aborts if any block bordering the water half is not solid, or if anything bordering the air half is liquid. Fully sealed, flat surface. |
 | **Ocean ruins / shipwrecks** | Dead. Both use `BlockIgnoreProcessor.STRUCTURE_AND_AIR`, which strips air from the template, so they stay water-filled. |
 | **Underwater carvers** | Produces the geometry but **self-destructs** — see below. |
@@ -1472,6 +1472,35 @@ underwater pair, registered for ocean biomes only.
 So the ocean restriction in `isSearchableOcean` survives the stricter test, and
 for the reason 5c gave: the underwater carvers are the only generator in the game
 that leaves water at two separated heights beside a spot cane can start from.
+
+## 6y. Ravine springs: the right block, two list entries too late
+
+Single water sources really do generate in ravine and cave walls — that is
+`SPRING_WATER`, and it is exactly the isolated elevated source section 6x said
+land has no producer for. It would be a good one. From `BiomeDefaultFeatures`:
+
+```
+537: addDefaultExtraVegetation(biome)
+538:   VEGETAL_DECORATION, RANDOM_PATCH(SUGAR_CANE_CONFIG), COUNT_HEIGHTMAP_DOUBLE(10)
+592: addDefaultSprings(biome)
+593:   VEGETAL_DECORATION, SPRING(WATER_SPRING_CONFIG), COUNT_BIASED_RANGE(50, 8, 8, 256)
+```
+
+Fifty attempts per chunk over y 8..256, against ten for the cane. Both sit in
+`VEGETAL_DECORATION`, and a step's features run in the order they were added, so
+the only thing that matters is which call comes first. Checked in
+`PlainsBiome`, `OceanBiome`, `DesertBiome` and `RiverBiome`: every one calls
+`addDefaultExtraVegetation` and then `addDefaultSprings` on adjacent lines. The
+only features registered after the springs are seagrass and kelp.
+
+So when the cane feature runs, every spring block in the world is still stone. The
+water appears afterwards, which is why ravines look full of promise and contain
+none.
+
+Worth stating plainly because the intuition is sound and the geometry is right:
+swap those two calls and land ravines would beat ocean caves outright — 50
+sources per chunk against a carver intersection that needs 1.4e8 chunks. The
+whole search lives or dies on the order of two lines in a biome constructor.
 
 ## 7. Watch out for
 
