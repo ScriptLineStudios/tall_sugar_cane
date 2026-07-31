@@ -125,6 +125,15 @@ public final class Terrain {
         return surfaceDepthNoise.sample(x * 0.0625, z * 0.0625, 0.0625, localX * 0.0625) * 15.0;
     }
 
+    /**
+     * Points the truncated-noise caches at a region, in block coordinates, so they
+     * can be flat arrays rather than hash maps. Call once per region, before
+     * generating it.
+     */
+    public void beginRegion(int originBlockX, int originBlockZ, int spanBlocks) {
+        truncated.beginRegion(originBlockX, originBlockZ, spanBlocks);
+    }
+
     /** Frees the column caches. Call once per region. */
     public void clearCaches() {
         columnCache.clear();

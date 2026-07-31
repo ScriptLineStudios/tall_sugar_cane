@@ -1,7 +1,7 @@
 package dev.drakou111.sugarcane.gen;
 
 import kaptainwutax.biomeutils.biome.Biome;
-import kaptainwutax.biomeutils.source.BiomeSource;
+import kaptainwutax.biomeutils.source.OverworldBiomeSource;
 import kaptainwutax.noiseutils.perlin.OctavePerlinNoiseSampler;
 import kaptainwutax.noiseutils.utils.MathHelper;
 import kaptainwutax.terrainutils.terrain.SurfaceGenerator;
@@ -57,7 +57,7 @@ public final class TruncatedNoise {
         }
     }
 
-    private final BiomeSource biomeSource;
+    private final OverworldBiomeSource biomeSource;
     private final OctavePerlinNoiseSampler minLimit;
     private final OctavePerlinNoiseSampler maxLimit;
     private final OctavePerlinNoiseSampler main;
@@ -66,16 +66,26 @@ public final class TruncatedNoise {
     private final double densityFactor;
     private final double densityOffset;
     private final int noiseSizeY;
-    private final Map<Long, double[]> cache = new HashMap<>();
-
     /**
-     * Biome depth and scale per noise cell. {@code getDepthAndScale} queries the
-     * 5x5 neighbourhood of every cell, so neighbouring cells ask the biome layer
-     * stack for the same values over and over — that was 15% of the search's time.
+     * Noise columns and biome depth/scale per cell, over the region being generated.
+     *
+     * <p>These were {@code HashMap<Long, ...>}. The hit rate was already good — the
+     * caches live for a whole region — but every probe boxed a long and walked a
+     * bucket, and a profile put that at 5% of the search on its own. The access
+     * pattern is a known rectangle, so a flat array indexed by cell offset does the
+     * same job with an array read. Anything outside the window still works, it just
+     * recomputes; that keeps callers that do not declare a region correct.
      */
-    private final Map<Long, float[]> biomeCache = new HashMap<>();
+    private int cellOriginX;
+    private int cellOriginZ;
+    private int cellSpanX;
+    private int cellSpanZ;
+    private double[][] columns = new double[0][];
+    private float[] cellDepth = new float[0];
+    private float[] cellScale = new float[0];
+    private boolean[] cellKnown = new boolean[0];
 
-    public TruncatedNoise(SurfaceGenerator generator, BiomeSource biomeSource) {
+    public TruncatedNoise(SurfaceGenerator generator, OverworldBiomeSource biomeSource) {
         this.biomeSource = biomeSource;
         this.minLimit = field(generator, "minLimitPerlinNoise");
         this.maxLimit = field(generator, "maxLimitPerlinNoise");
@@ -108,21 +118,70 @@ public final class TruncatedNoise {
         }
     }
 
-    public void clearCache() {
-        cache.clear();
-        biomeCache.clear();
+    /**
+     * Points the caches at the region about to be generated, in block coordinates.
+     * The margin covers the extra cell {@link #column} interpolates towards and the
+     * 5x5 biome neighbourhood {@code getDepthAndScale} averages over.
+     */
+    public void beginRegion(int originBlockX, int originBlockZ, int spanBlocks) {
+        cellOriginX = Math.floorDiv(originBlockX, 4) - 3;
+        cellOriginZ = Math.floorDiv(originBlockZ, 4) - 3;
+        int span = spanBlocks / 4 + 7;
+        if (span != cellSpanX) {
+            cellSpanX = span;
+            cellSpanZ = span;
+            columns = new double[span * span][];
+            cellDepth = new float[span * span];
+            cellScale = new float[span * span];
+            cellKnown = new boolean[span * span];
+        } else {
+            java.util.Arrays.fill(columns, null);
+            java.util.Arrays.fill(cellKnown, false);
+        }
     }
 
-    /** {@code (depth, scale)} of the noise biome at one cell, memoised. */
-    private float[] cellBiome(int cellX, int cellZ) {
-        long key = ((long) cellX & 0xFFFFFFFFL) << 32 | (long) cellZ & 0xFFFFFFFFL;
-        float[] cached = biomeCache.get(key);
-        if (cached == null) {
-            Biome biome = biomeSource.getBiomeForNoiseGen(cellX, 63, cellZ);
-            cached = new float[]{biome.getDepth(), biome.getScale()};
-            biomeCache.put(key, cached);
+    public void clearCache() {
+        java.util.Arrays.fill(columns, null);
+        java.util.Arrays.fill(cellKnown, false);
+    }
+
+    /** Flat index of a cell, or -1 when it falls outside the declared region. */
+    private int slot(int cellX, int cellZ) {
+        int dx = cellX - cellOriginX;
+        int dz = cellZ - cellOriginZ;
+        if (dx < 0 || dz < 0 || dx >= cellSpanX || dz >= cellSpanZ) {
+            return -1;
         }
-        return cached;
+        return dx * cellSpanZ + dz;
+    }
+
+    private float depthAt(int cellX, int cellZ) {
+        int slot = slot(cellX, cellZ);
+        if (slot < 0) {
+            return BiomeIds.depth(BiomeIds.noiseGen(biomeSource, cellX, cellZ));
+        }
+        if (!cellKnown[slot]) {
+            fill(slot, cellX, cellZ);
+        }
+        return cellDepth[slot];
+    }
+
+    private float scaleAt(int cellX, int cellZ) {
+        int slot = slot(cellX, cellZ);
+        if (slot < 0) {
+            return BiomeIds.scale(BiomeIds.noiseGen(biomeSource, cellX, cellZ));
+        }
+        if (!cellKnown[slot]) {
+            fill(slot, cellX, cellZ);
+        }
+        return cellScale[slot];
+    }
+
+    private void fill(int slot, int cellX, int cellZ) {
+        int id = BiomeIds.noiseGen(biomeSource, cellX, cellZ);
+        cellDepth[slot] = BiomeIds.depth(id);
+        cellScale[slot] = BiomeIds.scale(id);
+        cellKnown[slot] = true;
     }
 
     /**
@@ -170,14 +229,18 @@ public final class TruncatedNoise {
     }
 
     private double[] noiseColumn(int cellX, int cellZ, int need) {
-        long key = ((long) cellX & 0xFFFFFFFFL) << 32 | (long) cellZ & 0xFFFFFFFFL;
-        double[] cached = cache.get(key);
-        if (cached != null) {
-            return cached;
+        int slot = slot(cellX, cellZ);
+        if (slot >= 0) {
+            double[] cached = columns[slot];
+            if (cached != null) {
+                return cached;
+            }
         }
         double[] buffer = new double[CELLS + 1];
         sampleNoiseColumn(buffer, cellX, cellZ, 0, CELLS);
-        cache.put(key, buffer);
+        if (slot >= 0) {
+            columns[slot] = buffer;
+        }
         return buffer;
     }
 
@@ -274,12 +337,11 @@ public final class TruncatedNoise {
         float weightedScale = 0.0f;
         float weightedDepth = 0.0f;
         float totalWeight = 0.0f;
-        float depthAtCentre = cellBiome(x, z)[0];
+        float depthAtCentre = depthAt(x, z);
         for (int rx = -2; rx <= 2; rx++) {
             for (int rz = -2; rz <= 2; rz++) {
-                float[] biome = cellBiome(x + rx, z + rz);
-                float biomeDepth = biome[0];
-                float biomeScale = biome[1];
+                float biomeDepth = depthAt(x + rx, z + rz);
+                float biomeScale = scaleAt(x + rx, z + rz);
                 float weight = BIOME_WEIGHT[rx + 2 + (rz + 2) * 5] / (biomeDepth + 2.0f);
                 if (biomeDepth > depthAtCentre) {
                     weight /= 2.0f;

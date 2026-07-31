@@ -1,6 +1,7 @@
 package dev.drakou111.sugarcane;
 
 import dev.drakou111.sugarcane.gen.BiomeCaneConfig;
+import dev.drakou111.sugarcane.gen.BiomeIds;
 import dev.drakou111.sugarcane.gen.CanyonCarver;
 import dev.drakou111.sugarcane.gen.Carver;
 import dev.drakou111.sugarcane.gen.CarverConfig;
@@ -74,17 +75,17 @@ public final class RegionSearcher {
     }
 
     /**
-     * Set by {@link Inspect} to dump the placement trace for one chunk. The RNG
-     * stream only parts company with the terrain at a successful placement, so the
-     * trace is what shows where a simulated chunk diverged from the real one.
-     */
-    /**
      * Diagnostic only ("diag-all"): drop the ocean restriction so the geometry can
      * be counted on land as well. FINDINGS 5c justified searching oceans only, using
      * a spot definition that turned out stricter than the game's.
      */
     static boolean allBiomes = false;
 
+    /**
+     * Set by {@link Inspect} to dump the placement trace for one chunk. The RNG
+     * stream only parts company with the terrain at a successful placement, so the
+     * trace is what shows where a simulated chunk diverged from the real one.
+     */
     static int traceChunkX = Integer.MIN_VALUE;
     static int traceChunkZ = Integer.MIN_VALUE;
 
@@ -359,6 +360,7 @@ public final class RegionSearcher {
         void prepare(long seed) {
             this.seed = seed;
             this.biomes = new OverworldBiomeSource(MCVersion.v1_16_1, seed);
+            dev.drakou111.sugarcane.gen.LayerCaches.enlarge(this.biomes);
             this.terrain = new Terrain(biomes);
         }
 
@@ -397,7 +399,7 @@ public final class RegionSearcher {
             for (int lx = 0; lx < region; lx++) {
                 for (int lz = 0; lz < region; lz++) {
                     int cx = chunkX0 + lx, cz = chunkZ0 + lz;
-                    int biome = biomes.getBiomeForNoiseGen(cx * 4 + 2, 0, cz * 4 + 2).getId();
+                    int biome = BiomeIds.noiseGen(biomes, cx * 4 + 2, cz * 4 + 2);
                     if ((allBiomes || isSearchableOcean(biome))
                             && BiomeCaneConfig.hasSugarCane(biome)) {
                         candidate[regionIndex(lx, lz)] = true;
@@ -466,6 +468,7 @@ public final class RegionSearcher {
             }
 
             world.reset(chunkX0 * CHUNK, chunkZ0 * CHUNK);
+            terrain.beginRegion(chunkX0 * CHUNK, chunkZ0 * CHUNK, region * CHUNK);
             int generated = 0;
             for (int lx = 0; lx < region; lx++) {
                 for (int lz = 0; lz < region; lz++) {
@@ -516,7 +519,7 @@ public final class RegionSearcher {
                     // y=0, which is what WorldGenRegion.getBiome hands the surface
                     // builder. The quart-resolution noise biome is a different
                     // value and would be wrong here.
-                    int biome = biomes.getBiome(originX + x, 0, originZ + z).getId();
+                    int biome = BiomeIds.voronoi(biomes, originX + x, originZ + z);
                     biomeMap[mapIndex(originX + x, originZ + z)] = biome;
                     if (!SurfaceConfig.supported(biome)) {
                         ok = false;
@@ -568,7 +571,7 @@ public final class RegionSearcher {
         private void runCarvers(int chunkX, int chunkZ) {
             // The carver list belongs to the biome at the GENERATING chunk corner,
             // not to the start chunk's.
-            int cornerBiome = biomes.getBiomeForNoiseGen(chunkX * 4, 0, chunkZ * 4).getId();
+            int cornerBiome = BiomeIds.noiseGen(biomes, chunkX * 4, chunkZ * 4);
             boolean ocean = BiomeSourceValidator.isOcean(cornerBiome);
 
             Carver.Target airTarget = new Carver.Target() {
@@ -711,7 +714,7 @@ public final class RegionSearcher {
                 }
             }
 
-            int biome = biomes.getBiomeForNoiseGen(chunkX * 4 + 2, 0, chunkZ * 4 + 2).getId();
+            int biome = BiomeIds.noiseGen(biomes, chunkX * 4 + 2, chunkZ * 4 + 2);
             int count = BiomeCaneConfig.count(biome);
             int index = BiomeCaneConfig.index(biome);
             java.util.List<String> trace =
