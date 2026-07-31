@@ -1502,6 +1502,53 @@ swap those two calls and land ravines would beat ocean caves outright — 50
 sources per chunk against a carver intersection that needs 1.4e8 chunks. The
 whole search lives or dies on the order of two lines in a biome constructor.
 
+## 6z. The 1.7x that was really 1.18x
+
+Section 6w projected ~1.7x from the profile. Built, measured against the same
+20,000-seed run on an otherwise idle machine, results identical throughout (666
+cane columns, tallest 4): **12,633 -> 14,934 chunks/s, 1.18x**.
+
+| change | chunks/s |
+|---|---|
+| before | 12,633 |
+| raw biome ids + flat noise caches | 13,219 |
+| layer cache 1024 -> 4096 | 14,171 |
+| hoisted sampling constants and octave samplers | 14,934 |
+
+What the projection got wrong, in order of size:
+
+**Biome lookups, projected 1.25x, delivered ~1.12x.** The 20% was real but mostly
+not recoverable. The memo was already working; what was left was the boxing
+(`Biomes.REGISTRY.get(Integer.valueOf(id))` on a call that only wanted the id
+back) and cache sizing. `IntLayerCache` turned out not to be a HashMap at all but
+a direct-mapped `long[]`/`int[]` table — the HashMap frames in the profile were
+our own two memo maps.
+
+**Cache size is not monotonic.** 1024 stock, 4096 best, and 65536 at 6,571
+chunks/s — half the speed of stock. Forty layers times 24 workers puts the tables
+in competition with the noise data for L2, so past a point locality costs more
+than recomputation saves. Worth remembering before "just make the cache bigger".
+
+**Block writes, projected ~7%, delivered a regression.** The 7.7% is
+`setBlock` called per block by carvers and features, not the bulk column copy.
+Trimming the copy to the cut and skipping the always-air remainder measured
+13,339 against 14,171 — the extra indirection cost more than the memory traffic
+saved. Reverted. Clearing less of the world per region is worth 0.6%: measured by
+skipping the fill entirely, which is 13,659 against 13,579.
+
+**The noise has no cheap structural win left.** It is 46.6% and the
+selector-first trick already cuts it from 40 octave evaluations to 26. The
+tempting idea — hoist the x/z permutation lookups across the 14 y values of a
+column — pays almost nothing: in Perlin only `p[X]` and `p[X+1]` are
+y-independent, everything past `p[X] + Y` is not. Neighbouring columns do not
+help either, because one quart step is `xzScale * persistence` in noise space,
+far more than a lattice cell. What is left is genuine SIMD across octaves with
+gathers into sixteen permutation tables, which is a real project with an
+uncertain payoff, not a tidy-up.
+
+Run-to-run variance on a 13-second benchmark is about 4%, which is larger than
+two of the steps above. Every number here is from a 40-second run.
+
 ## 7. Watch out for
 
 - `nextInt(1)` is called twice per try (yspread is 0). It always returns 0 but
