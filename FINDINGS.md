@@ -1620,6 +1620,45 @@ SIMD remains untried and now looks less attractive: what is left per sample is
 three dependent permutation gathers and a lerp tree, and gathers are the thing
 SIMD does worst.
 
+## 6ab. The error that manufactures false hits, measured at last
+
+Seed 4531414558 reported 5 tall at -87,23,96 and came back **2 tall** in game. Not
+the optimisation — the pre-noise-work build produces byte-identical output on that
+seed. The blocks say why:
+
+| position | simulated | real |
+|---|---|---|
+| -87, 25, 96 | air | **water** |
+| -88, 23, 95 | air | **water** |
+
+Every placement is gated on `isEmptyBlock`, so simulated air where the game has
+water invents a legal spot from nothing. Invocation 4 placed three blocks on top of
+the 2-tall base in simulation and nothing in the game, and invocation 2's second
+column at -88,23,95 vanished for the same reason — which is the tell, because it
+means the stream diverged *within* an invocation, between try 8 and try 15.
+
+**The accuracy table never measured this.** It reported simulated air that is
+really solid, simulated water that is really solid, and simulated soil that is
+really not. Air against water was missing, and it is the only one that can turn a
+non-spot into a spot. Added to `ProtoValidator`; against 281 real pre-flood ocean
+chunks:
+
+```
+simulated AIR that is really WATER   : 8 / 38953 air  (0.0205%)
+simulated WATER that is really AIR   : 7 / 89677 water (0.0078%)
+```
+
+0.02% sounds harmless and is not. The scored window is 16 columns per chunk, so a
+whole chunk holds about 2,200 simulated-air cells, giving **~0.46 wrongly-air cells
+per chunk** and a ~37% chance that any chunk contains at least one. One is enough:
+a try that wrongly succeeds consumes two extra draws from `ColumnPlacer` and
+desynchronises everything after it. That is the arithmetic behind the ~67% spot
+precision measured after the cursor bug, and it means **about one reported hit in
+three is expected to fail in game**.
+
+Which is a rate to design around rather than be surprised by: verify before
+travelling, and treat a HIT line as a candidate.
+
 ## 7. Watch out for
 
 - `nextInt(1)` is called twice per try (yspread is 0). It always returns 0 but

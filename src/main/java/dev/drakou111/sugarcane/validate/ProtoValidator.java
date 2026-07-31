@@ -118,6 +118,13 @@ public final class ProtoValidator {
 
         long cells = 0, agree = 0;
         long simAir = 0, simAirRealSolid = 0;
+        // The error class that actually manufactures false hits. Every cane
+        // placement is gated on isEmptyBlock, so simulated air where the game has
+        // water invents a legal spot out of nothing, and the whole chunk's RNG
+        // stream desynchronises from the first try that wrongly succeeds. Seed
+        // 4531414558 was reported 5 tall and came back 2 for exactly this: air at
+        // -87,25,96 that the game has as water.
+        long simAirRealWater = 0, simWaterRealAir = 0;
         long realAirSimSolid = 0;
         long simWater = 0, simWaterRealSolid = 0;
         long simSoil = 0, simSoilRealNot = 0, realSoilSimNot = 0;
@@ -246,11 +253,17 @@ public final class ProtoValidator {
                             if (realSolidish) {
                                 simAirRealSolid++;
                             }
+                            if (realCat == WATER) {
+                                simAirRealWater++;
+                            }
                         }
                         if (simCat == WATER) {
                             simWater++;
                             if (realSolidish) {
                                 simWaterRealSolid++;
+                            }
+                            if (realCat == AIR) {
+                                simWaterRealAir++;
                             }
                         }
                         if (realCat == AIR && (simCat == STONE || simCat == DIRT
@@ -296,6 +309,10 @@ public final class ProtoValidator {
         System.out.printf("  simulated SOIL that is really not    : %d / %d soil  (%.4f%%)%n",
                 simSoilRealNot, simSoil, 100.0 * simSoilRealNot / Math.max(1, simSoil));
         System.out.printf("%nthe errors that only lose finds:%n");
+        System.out.printf("  simulated AIR that is really WATER   : %d / %d air  (%.4f%%)%n",
+                simAirRealWater, simAir, 100.0 * simAirRealWater / Math.max(1, simAir));
+        System.out.printf("  simulated WATER that is really AIR   : %d / %d water (%.4f%%)%n",
+                simWaterRealAir, simWater, 100.0 * simWaterRealAir / Math.max(1, simWater));
         System.out.printf("  real AIR simulated as solid          : %d%n", realAirSimSolid);
         System.out.printf("  real SOIL simulated as something else: %d%n", realSoilSimNot);
 
