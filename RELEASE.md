@@ -1,85 +1,94 @@
-# v1.0.2 — 1.48x faster, and the bottleneck was a jump table
+# v1.1.0 — search where the player actually spawns
 
-Performance only. No behaviour changes, no interface changes, still Java 21+, and
-every step is bit-exact — the benchmark reports the same chunks generated, chunks
-searched and cane columns as v1.0.1 throughout.
-
-**13,279 → 19,608 chunks/s** on 24 threads. Measured interleaved
-base/variant/base/variant so machine drift cancels; three pairs, variance under
-0.3%.
-
-Compounded with v1.0.1 that is **1.75x since v1.0**.
-
-## The find that made it
-
-Setting out to vectorise the eight gradient dot products per noise sample, the
-first step was reading what `MathHelper.grad` actually does. It is not a dot
-product. It is a 16-way `tableswitch` where every case is a single add:
+A new world does not drop you at 0,0. It drops you at the spawn point, which over
+300 seeds averages **196 blocks** from the origin — so a search centred on 0,0 finds
+columns near a place nobody starts.
 
 ```
-0: x+y   1: -x+y   2: x-y   3: -x-y     8: y+z    9: -y+z  10: y-z  11: -y-z
-4: x+z   5: -x+z   6: x-z   7: -x-z    12: y+x   13: -y+z  14: y-x  15: -y-z
+java -jar sugarcane.jar search 1 1000000 6 24 5 x --spawn
 ```
 
-That compiles to a jump table indexed by four bits of a permutation value, taken
-**eight times per sample**, on an index that is effectively random. It mispredicts
-nearly every time, and a mispredict costs an order of magnitude more than the
-addition it guards. This was the single largest cost in the search, hiding inside
-what the profiler attributed to `Noise.lookup`.
+`--spawn` centres each seed's box on that world's **spawn chunk** instead. Off by
+default. A find inside the box is then a find you can walk to the moment you load
+in.
 
-A coefficient table replaces it:
+There is also a `spawn` command for looking one up:
 
-```java
-return GX[h] * x + GY[h] * y + GZ[h] * z;
+```
+$ java -jar sugarcane.jar spawn 1500050556
+seed 1500050556  spawn chunk 1,7  (block 24, 120)
 ```
 
-**1.42x on its own**, and exact rather than merely equivalent: every case is a sum
-of two of the three coordinates with unit signs, multiplying by `1.0` or `-1.0`
-reproduces `dload` and `dneg` bit for bit, `a - b` is *defined* as `a + (-b)`, and
-the two cases the library writes reversed are commutative in IEEE754. The only
-divergence is the unused third coordinate contributing a signed zero, which can
-change a result only when the other two terms are both exactly zero at once.
+## What it costs
 
-No SIMD was written. It now looks less attractive than it did: what remains per
-sample is three dependent permutation gathers and a lerp tree, and gathers are the
-thing SIMD does worst.
+Measured interleaved, 6000 seeds each way:
 
-## Also in this release
+| | chunks searched | chunks/s |
+|---|---|---|
+| centred on 0,0 | 189,870 | ~10,520 |
+| `--spawn` | 118,547 | ~6,453 |
 
-**Column hoisting, 1.07x.** `sampleNoiseColumn` asks for 14 cell values at a single
-(x, z), and the library redid the whole lattice setup for each. `ColumnPerlin`
-computes the y-independent half once per octave per column: the x and z sections,
-their fractions and fades, and the two permutation lookups taken before the section
-y is added in.
+**Seeds per second does not change** — the same 18.4 seconds either way. Reproducing
+`setInitialSpawn` costs about 14 ms per seed, and that is almost exactly repaid by
+there being less ocean to generate near a land spawn. What you pay is coverage: 62%
+of the chunks, so roughly **1.6x the time to a find**.
 
-**Tried and rejected**, recorded so nobody repeats it: inverting the loops so each
-octave sweeps the column hoists the same work, but moves the per-y accumulator from
-a register into an array, and the 224 extra read-modify-writes per column cost more
-than the hoisting saves.
+Whether that is worth it depends on what you want. 196 blocks is a short walk, so
+origin-centred finds are usually reachable anyway. `--spawn` earns its cost when you
+want to hand someone a seed where the cane is right there.
 
-## Verification
+## Correctness
 
-`TruncatedNoiseTest` compares whole generated columns against TerrainUtils and still
-reports **764 columns exact**. All 37 tests pass. The confirmed find at seed
-`1500050556` still reports as a five-tall hit.
+`findBiomeHorizontal` looks like a widening spiral and is not: with `findClosest`
+false the outer loop starts at the full radius, so it runs **once**, sweeping a
+single 129x129 square of quart cells and reservoir-sampling matches with
+`random.nextInt(count + 1)`. The z-outer, x-inner nesting matters, because the draw
+consumes RNG and any other order picks a different winner.
+
+Checked against `level.dat` from five worlds a real 1.16.1 server generated — seeds
+4531414558, 2585605, 4534752689, 4532846955 and 4505722117 — and it matches the
+spawn chunk in **all five**.
+
+## A second confirmed find
+
+**Seed `4534752689`, five tall at `-36 14 63`.** Verified on a real server, and the
+only cane in the surrounding 3x3 chunks, so there is nothing to mistake it for. 73
+blocks from the origin, in an ordinary ocean, y=14 — dig or swim down.
+
+```
+invocation 5: origin -37,63  y=14  try 7  PLACED -36,14,63 height 3  -> y=14,15,16
+invocation 6: origin -36,61  y=17  try 1  PLACED -36,17,63 height 2  -> y=17,18
+```
+
+Consecutive invocations of the same chunk: one built 3, the next drew y=17 — exactly
+its top — and stacked 2 more.
+
+## Expect about one hit in three to be real
+
+This release adds the measurement that explains it. Every placement is gated on
+`isEmptyBlock`, so simulated **air where the game has water** invents a legal spot
+from nothing, and one wrong cell desynchronises a chunk's whole placement stream.
+The accuracy table never measured that particular confusion. Now it does:
+
+```
+simulated AIR that is really WATER   : 0.0205% of air cells
+simulated WATER that is really AIR   : 0.0078% of water cells
+```
+
+0.02% is not harmless. A chunk holds ~2,200 simulated-air cells, so about 0.46 of
+them are wrong, and roughly a third of chunks carry at least one. Verifying every
+hit found so far gives **2 of 6** — one lost only its upper column, two produced no
+cane at all.
+
+So: **a `HIT` line is a candidate, not a result.** Verify before you travel.
+
+```
+python tools/verify.py path/to/minecraft_server.1.16.1.jar <seed> <x> <y> <z>
+```
+
+Run `validate-proto` against a pre-flood export to see the numbers for yourself.
 
 ## Upgrading
 
-Drop in the new `sugarcane.jar`. Nothing else changes.
-
-If you are coming from **v1.0** rather than v1.0.1, note that v1.0.1 carried two
-correctness fixes as well: hits are now only reported when a single chunk built the
-whole column (v1.0 could report cross-chunk columns that do not reproduce in game),
-and `verify.py` was fixed — an NBT parsing bug made it report every world as empty.
-See the v1.0.1 notes.
-
-## A note on measurement
-
-The column hoisting above was measured three times as a 10% *regression*, deleted,
-and only recovered because the reverted baseline then measured 11,367 chunks/s where
-it had measured 14,934 twenty minutes earlier. Minecraft had been launched
-mid-session.
-
-Runs minutes apart on a desktop are not comparable. Every figure in this release
-comes from alternating base and variant back to back. Absolute numbers under load
-are meaningless; ratios survive.
+Drop in the new `sugarcane.jar`. Nothing changes unless you pass `--spawn`; search
+performance is unchanged from v1.0.2, which was already 1.75x v1.0.
