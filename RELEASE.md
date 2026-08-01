@@ -5,7 +5,7 @@ A new world does not drop you at 0,0. It drops you at the spawn point, which ove
 columns near a place nobody starts.
 
 ```
-java -jar sugarcane.jar search 1 1000000 6 24 5 x --spawn
+java -jar sugarcane.jar search 1 1000000 6 24 5 --spawn
 ```
 
 `--spawn` centres each seed's box on that world's **spawn chunk** instead. Off by
