@@ -82,6 +82,21 @@ public final class RegionSearcher {
     static boolean allBiomes = false;
 
     /**
+     * "--spawn": centre each seed's search box on that world's spawn chunk instead
+     * of on 0,0. A fresh world drops the player at the spawn point, not the origin,
+     * and over 300 seeds that is a mean 196 blocks apart — so a find inside the box
+     * is a find you can walk to.
+     *
+     * <p>It is not free, and the cost is in two parts. Reproducing
+     * {@code setInitialSpawn} means sweeping a 129x129 square of quart cells for a
+     * player-spawn biome, which measures ~14 ms against the ~35 ms a seed otherwise
+     * costs one thread. And spawn is always in a land biome, so fewer of the
+     * surrounding chunks are the ocean this search needs: 30.8 per seed against 45.0
+     * at the origin. Together, about half the chunks per second.
+     */
+    static boolean centreOnSpawn = false;
+
+    /**
      * Set by {@link Inspect} to dump the placement trace for one chunk. The RNG
      * stream only parts company with the terrain at a successful placement, so the
      * trace is what shows where a simulated chunk diverged from the real one.
@@ -121,6 +136,11 @@ public final class RegionSearcher {
         final int probeTrials = args.length > 5 && args[5].startsWith("probe:")
                 ? Integer.parseInt(args[5].substring("probe:".length())) : 0;
         allBiomes = args.length > 5 && args[5].equals("diag-all");
+        for (String arg : args) {
+            if (arg.equals("--spawn")) {
+                centreOnSpawn = true;
+            }
+        }
         final boolean diagnose = probeTrials > 0
                 || (args.length > 5 && args[5].startsWith("diag"))
                 || (args.length > 5 && args[5].equals("spots"));
@@ -128,9 +148,10 @@ public final class RegionSearcher {
         // geometry can be looked at in a real world.
         final boolean printSpots = args.length > 5 && args[5].equals("spots");
 
-        System.out.printf("seeds %d..%d, chunk radius %d, %d threads, reporting height >= %d%s%n",
+        System.out.printf("seeds %d..%d, chunk radius %d, %d threads, reporting height >= %d%s%s%n",
                 firstSeed, firstSeed + seeds - 1, radius, threads, report,
-                diagnose ? ", counting geometry" : "");
+                diagnose ? ", counting geometry" : "",
+                centreOnSpawn ? ", centred on world spawn" : "");
 
         AtomicLong nextSeed = new AtomicLong(firstSeed);
         long lastSeed = firstSeed + seeds;
@@ -356,12 +377,24 @@ public final class RegionSearcher {
             this.needed = new boolean[region * region];
         }
 
+        /** Chunk the search box is centred on: 0,0 unless --spawn moves it. */
+        private int centreChunkX;
+        private int centreChunkZ;
+
         /** Prepares this worker for a seed without searching anything yet. */
         void prepare(long seed) {
             this.seed = seed;
             this.biomes = new OverworldBiomeSource(MCVersion.v1_16_1, seed);
             dev.drakou111.sugarcane.gen.LayerCaches.enlarge(this.biomes);
             this.terrain = new Terrain(biomes);
+            if (centreOnSpawn) {
+                long packed = dev.drakou111.sugarcane.gen.SpawnFinder.spawnChunk(biomes, seed);
+                centreChunkX = dev.drakou111.sugarcane.gen.SpawnFinder.chunkX(packed);
+                centreChunkZ = dev.drakou111.sugarcane.gen.SpawnFinder.chunkZ(packed);
+            } else {
+                centreChunkX = 0;
+                centreChunkZ = 0;
+            }
         }
 
         void searchSeed(long seed) {
@@ -370,8 +403,10 @@ public final class RegionSearcher {
             // border, which is never searched.
             // A region whose interior starts past the box cannot hold anything
             // searchable, so stop before generating it.
-            for (int cx = -radius - 1; cx + 1 <= radius; cx += region - 2) {
-                for (int cz = -radius - 1; cz + 1 <= radius; cz += region - 2) {
+            for (int cx = centreChunkX - radius - 1; cx + 1 <= centreChunkX + radius;
+                    cx += region - 2) {
+                for (int cz = centreChunkZ - radius - 1; cz + 1 <= centreChunkZ + radius;
+                        cz += region - 2) {
                     searchRegion(cx, cz);
                     terrain.clearCaches();
                 }
@@ -426,7 +461,8 @@ public final class RegionSearcher {
                     // the distance is free as long as the seed count makes up for
                     // the smaller box.
                     int cx = regionChunkX + lx, cz = regionChunkZ + lz;
-                    if (cx < -radius || cx > radius || cz < -radius || cz > radius) {
+                    if (cx < centreChunkX - radius || cx > centreChunkX + radius
+                            || cz < centreChunkZ - radius || cz > centreChunkZ + radius) {
                         continue;
                     }
                     // Mineshafts are not simulated, and their air is written with

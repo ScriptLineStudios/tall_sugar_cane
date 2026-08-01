@@ -64,6 +64,14 @@ pregeneration rather than by anything a player can do. Those print as
   about 2 — see FINDINGS 5c for the measured table.
 - **mode** — `diag` counts geometry, `probe:N` measures the hit probability,
   `spots` prints the coordinates of the rare terrain the search hunts for.
+- **`--spawn`** centres each seed's box on that world's **spawn chunk** instead of
+  0,0. A new world drops you at the spawn point, which over 300 seeds averages 196
+  blocks from the origin, so this is the difference between a find near 0,0 and a
+  find near where you actually arrive. It costs about 38% of the chunks per second:
+  reproducing `setInitialSpawn` means sweeping a 129x129 square of quart cells, and
+  spawn always sits in a land biome, so fewer of the surrounding chunks are the
+  ocean this search needs (30.8 per seed against 45.0). Verified against level.dat
+  from five real generated worlds.
 
 Expect very roughly **one hit per 2 hours** on 24 cores at ~19,000 chunks/s, of
 which about half are 6 or taller. That rate is a projection from the measured

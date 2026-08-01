@@ -53,6 +53,10 @@ public final class LayerCaches {
 
     /** Best-effort: if the library's internals have moved, leave the caches alone. */
     public static void enlarge(OverworldBiomeSource source) {
+        enlarge(source, CAPACITY);
+    }
+
+    public static void enlarge(OverworldBiomeSource source, int capacity) {
         try {
             Field layersField = findField(source.getClass(), "layers");
             layersField.setAccessible(true);
@@ -63,7 +67,7 @@ public final class LayerCaches {
             ctor.setAccessible(true);
             for (BiomeLayer layer : stack) {
                 if (layer instanceof IntBiomeLayer) {
-                    cacheField.set(layer, ctor.newInstance(CAPACITY));
+                    cacheField.set(layer, ctor.newInstance(capacity));
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException e) {

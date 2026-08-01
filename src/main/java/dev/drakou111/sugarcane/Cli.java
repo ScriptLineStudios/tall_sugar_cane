@@ -25,14 +25,23 @@ public final class Cli {
 
     private static final Command[] COMMANDS = {
             new Command("search",
-                    "<firstSeed> <seeds> <chunkRadius> <threads> <minHeight> [diag|probe:N|spots]",
-                    "Search for sugar cane taller than 4. This is the main program.",
+                    "<firstSeed> <seeds> <chunkRadius> <threads> <minHeight> "
+                            + "[diag|probe:N|spots] [--spawn]",
+                    "Search for sugar cane taller than 4. This is the main program. "
+                            + "--spawn centres each seed's box on that world's spawn chunk "
+                            + "rather than 0,0, so a find is one you can walk to; it costs "
+                            + "about 38% of the chunks per second.",
                     RegionSearcher::main),
             new Command("inspect",
                     "<seed> <x> <y> <z> [searchRadius]",
                     "Regenerate one region and dump what the simulator sees at a position, "
                             + "including the placement trace that shows which invocations stacked.",
                     Inspect::main),
+            new Command("spawn",
+                    "<seed> [count]",
+                    "Where a fresh world puts the player. With a count, times it over "
+                            + "that many seeds.",
+                    SpawnBench::main),
             new Command("columns",
                     "<seed> <x0> <x1> <z> <y0> <y1>",
                     "Print the raw noise terrain for a slice, before surface, carvers or features.",
