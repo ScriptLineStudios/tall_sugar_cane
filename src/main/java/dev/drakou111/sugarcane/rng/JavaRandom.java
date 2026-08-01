@@ -85,6 +85,16 @@ public final class JavaRandom {
      * Used to seed carvers: {@code applyCarvers} calls it once per candidate
      * start chunk with the salt {@code levelSeed + carverIndexInBiomeList}.
      */
+    /**
+     * {@code WorldgenRandom.setLargeFeatureWithSalt}: how structure placement is
+     * seeded, on the structure's grid cell rather than the chunk.
+     */
+    public long setLargeFeatureWithSalt(long levelSeed, int gridX, int gridZ, int salt) {
+        long s = (long) gridX * 341873128712L + (long) gridZ * 132897987541L + levelSeed + salt;
+        setSeed(s);
+        return s;
+    }
+
     public long setLargeFeatureSeed(long levelSeed, int chunkX, int chunkZ) {
         setSeed(levelSeed);
         long a = nextLong();

@@ -63,5 +63,12 @@ replay_pid*.log
 Thumbs.db
 desktop.ini
 
+### Side experiments ###
+# Throwaway searches that are not part of this project's purpose -- seed hunts for
+# other criteria, one-off probes. They live under the source tree so they compile
+# against the real worldgen instead of reimplementing it, but nothing in the
+# project references them and a clone builds fine without them.
+src/main/java/dev/drakou111/sugarcane/experiments/
+
 ### Claude Code workspace ###
 .claude/
