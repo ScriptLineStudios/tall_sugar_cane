@@ -87,7 +87,8 @@ public final class ArrayWorld implements BlockView {
         return h;
     }
 
-    private static long key(int x, int y, int z) {
+    /** One block position packed into a long, for keying a map on a coordinate. */
+    public static long key(int x, int y, int z) {
         return ((long) x << 40) ^ ((long) (z & 0xFFFFFF) << 16) ^ (y & 0xFFFF);
     }
 

@@ -422,6 +422,19 @@ public final class RegionSearcher {
         private int centreChunkZ;
 
         /**
+         * Bases already reported in this region, so one stack produces one line.
+         * Anything over 4 is necessarily built by two or more placements — a single
+         * one writes at most 4 — and every placement in a stack walks down to the
+         * same base, so reporting per placement prints, counts and uploads a find
+         * once per placement that went into it.
+         *
+         * <p>Per region rather than per chunk: when a stack crosses a border, each
+         * side reaches the threshold during its own decoration and reports the same
+         * base. Allocated on first use, which for most runs is never.
+         */
+        private java.util.Set<Long> reportedBases;
+
+        /**
          * This seed's spawn chunk, for reporting how far a find is from where the
          * player arrives. Computed on demand and cached for the seed, because
          * {@code spawnChunk} costs ~14 ms against the ~35 ms a whole seed takes —
@@ -482,6 +495,9 @@ public final class RegionSearcher {
             regionChunkZ = chunkZ0;
 
             boolean any = false;
+            if (reportedBases != null) {
+                reportedBases.clear();
+            }
             for (int i = 0; i < region * region; i++) {
                 candidate[i] = false;
                 supported[i] = false;
@@ -828,6 +844,12 @@ public final class RegionSearcher {
                     int base = c.y();
                     while (world.getBlock(c.x(), base - 1, c.z()) == Blocks.SUGAR_CANE) {
                         base--;
+                    }
+                    if (reportedBases == null) {
+                        reportedBases = new java.util.HashSet<>();
+                    }
+                    if (!reportedBases.add(ArrayWorld.key(c.x(), base, c.z()))) {
+                        continue;
                     }
                     int solid = world.caneRunFromOneChunk(c.x(), base, c.z());
                     // Where the player arrives, and how far they then have to travel.
