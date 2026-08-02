@@ -150,8 +150,7 @@ public final class Cli {
         String report = scanner1.nextLine().trim();
         if (report.equals("y") || report.equals("yes") || report.equals("Yes") || report.equals("Y")) {
             reportFinds = true;
-        }
-        if (report.equals("n") || report.equals("no") || report.equals("No") || report.equals("N")) {
+        } else {
             reportFinds = false;
             return;
         }
