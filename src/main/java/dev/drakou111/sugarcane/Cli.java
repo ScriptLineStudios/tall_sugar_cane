@@ -39,7 +39,7 @@ public final class Cli {
 
     private static final Command[] COMMANDS = {
             new Command("search",
-                    "<firstSeed> <seeds> <chunkRadius> <threads> <minHeight> "
+                    "<firstSeed> <seedCount> <chunkRadius> <threads> <minHeight> "
                             + "[diag|probe:N|spots] [--spawn]",
                     "Search for sugar cane taller than 4. This is the main program. "
                             + "--spawn centres each seed's box on that world's spawn chunk "
@@ -189,8 +189,8 @@ public final class Cli {
             System.out.println();
         }
         System.out.println("Start here:");
-        System.out.println("  java -jar sugarcane.jar search 1 1000000 6 24 5");
-        System.out.println("     searches seeds 1.. within 96 blocks of spawn on 24 threads,");
+        System.out.println("  java -jar sugarcane.jar search 10 1000000 6 24 5");
+        System.out.println("     searches seeds 10..1000010 within 96 blocks (6 chunks) of spawn on 24 threads,");
         System.out.println("     printing a HIT line for any column 5 or taller.");
         System.out.println();
         System.out.println("  java -jar sugarcane.jar inspect 1500050556 91 16 65 6");
