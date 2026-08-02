@@ -170,7 +170,7 @@ public final class RegionSearcher {
             }, "search-" + t);
             pool[t].start();
         }
-        Progress progress = new Progress(stats, start, nextSeed, lastSeed);
+        Progress progress = new Progress(stats, start, nextSeed, lastSeed, firstSeed);
         progress.setDaemon(true);
         progress.start();
         for (Thread thread : pool) {
@@ -303,12 +303,14 @@ public final class RegionSearcher {
         private final long start;
         private final AtomicLong nextSeed;
         private final long lastSeed;
+        private final long firstSeed;
 
-        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed) {
+        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed, long firstSeed) {
             this.stats = stats;
             this.start = start;
             this.nextSeed = nextSeed;
             this.lastSeed = lastSeed;
+            this.firstSeed = firstSeed;
         }
 
         @Override
@@ -320,12 +322,19 @@ public final class RegionSearcher {
                     return;
                 }
                 long ms = System.currentTimeMillis() - start;
+                long seedsSearched = (nextSeed.get() - firstSeed);
+                long totalSeeds = (lastSeed - firstSeed - 1);
+
                 System.out.printf("[%4.1f min] seeds done ~%d/%d, searched %d chunks (%.0f/s), "
                                 + "cane %d, stacked %d, tallest %d%n",
-                        ms / 60000.0, Math.max(0, nextSeed.get() - 1), lastSeed,
+                        ms / 60000.0,
+                        seedsSearched,
+                        totalSeeds,
                         stats.chunksSearched.get(),
                         stats.chunksSearched.get() * 1000.0 / Math.max(1, ms),
-                        stats.caneColumns.get(), stats.stackedColumns.get(), stats.tallest.get());
+                        stats.caneColumns.get(),
+                        stats.stackedColumns.get(),
+                        stats.tallest.get());
                 System.out.flush();
             }
         }
