@@ -25,6 +25,8 @@ public final class Cli {
     private static final String CONFIG_FILE = "config.properties";
     private static String reporterUsername;
 
+    public static boolean reportFinds;
+
     private Cli() {
     }
 
@@ -141,6 +143,17 @@ public final class Cli {
             } catch (IOException e) {
                 System.err.println("Failed to read " + CONFIG_FILE + ", proceeding without username.");
             }
+        }
+
+        Scanner scanner1 = new Scanner(System.in);
+        System.out.print("Do you want to report your finds to the spreadsheet, which you can open by doing java -jar sugarcane.jar -s? (y/n): ");
+        String report = scanner1.nextLine().trim();
+        if (report.equals("y") || report.equals("yes") || report.equals("Yes") || report.equals("Y")) {
+            reportFinds = true;
+        }
+        if (report.equals("n") || report.equals("no") || report.equals("No") || report.equals("N")) {
+            reportFinds = false;
+            return;
         }
 
         if (reporterUsername == null || reporterUsername.trim().isEmpty()) {

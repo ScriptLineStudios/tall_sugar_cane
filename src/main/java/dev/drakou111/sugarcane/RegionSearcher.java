@@ -787,14 +787,16 @@ public final class RegionSearcher {
                         System.out.printf(
                                 "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d%n",
                                 seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ);
-                        reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                        if (solid >= 5 && Cli.reportFinds) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                        }
                     } else {
                         System.out.printf(
                                 "cross-chunk seed %d  x=%d y=%d z=%d  height %d only with a "
                                         + "neighbour's help, %d on its own - not verifiable%n",
                                 seed, c.x(), base, c.z(), height, solid);
-                        if (solid >= 5) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, true, solid);
+                        if (solid >= 5 && Cli.reportFinds) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
                         }
                     }
                     System.out.flush();

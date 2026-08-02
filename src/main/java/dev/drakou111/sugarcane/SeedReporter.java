@@ -1,7 +1,5 @@
 package dev.drakou111.sugarcane;
 
-import dev.drakou111.sugarcane.Cli;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -35,7 +33,6 @@ public class SeedReporter {
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
 
-        // Use .send() synchronously for instant feedback/testing
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
