@@ -854,8 +854,8 @@ public final class RegionSearcher {
                                         + "away)  height %d only with a neighbour's help, %d on "
                                         + "its own - not verifiable%n",
                                 seed, c.x(), base, c.z(), spawnX, spawnZ, away, height, solid);
-                        if (solid >= 5 && Cli.reportFinds) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid, spawnX, spawnZ, away);
+                        if (Cli.reportFinds) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, true, solid, spawnX, spawnZ, away);
                         }
                     }
                     System.out.flush();

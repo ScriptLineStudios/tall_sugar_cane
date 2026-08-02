@@ -37,7 +37,7 @@ public class SeedReporter {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                System.out.println("Successfully reported find to spreadsheet");
+                System.out.println("Successfully reported find to spreadsheet!");
             } else {
                 System.err.println("Failed to report find. HTTP Code: " + response.statusCode());
             }
