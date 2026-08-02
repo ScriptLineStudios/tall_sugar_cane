@@ -66,6 +66,8 @@ public final class RegionSearcher {
      */
     static final int MAX_REGION = 32;
 
+    static SeedReporter reporter = new SeedReporter();
+
     /**
      * Region side for a search box of the given chunk radius: big enough that the
      * whole box lands in the interior, since border chunks are never searched.
@@ -326,7 +328,7 @@ public final class RegionSearcher {
                 long totalSeeds = (lastSeed - firstSeed - 1);
 
                 System.out.printf("[%4.1f min] seeds done ~%d/%d, searched %d chunks (%.0f/s), "
-                                + "cane %d, stacked %d, tallest %d%n",
+                                + "cane %d, stacked %d, tallest %d%n, currentSeed %d",
                         ms / 60000.0,
                         seedsSearched,
                         totalSeeds,
@@ -334,7 +336,8 @@ public final class RegionSearcher {
                         stats.chunksSearched.get() * 1000.0 / Math.max(1, ms),
                         stats.caneColumns.get(),
                         stats.stackedColumns.get(),
-                        stats.tallest.get());
+                        stats.tallest.get(),
+                        nextSeed.get());
                 System.out.flush();
             }
         }
@@ -778,21 +781,21 @@ public final class RegionSearcher {
                     while (world.getBlock(c.x(), base - 1, c.z()) == Blocks.SUGAR_CANE) {
                         base--;
                     }
-                    // Only the part one chunk built by itself is real. A column two
-                    // chunks cooperated on collapses to its base run when the game
-                    // decorates them the other way round, and the game's order depends
-                    // on how the world was loaded, not on the seed.
                     int solid = world.caneRunFromOneChunk(c.x(), base, c.z());
                     if (solid >= report) {
                         stats.hits.incrementAndGet();
                         System.out.printf(
                                 "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d%n",
                                 seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ);
+                        reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
                     } else {
                         System.out.printf(
                                 "cross-chunk seed %d  x=%d y=%d z=%d  height %d only with a "
                                         + "neighbour's help, %d on its own - not verifiable%n",
                                 seed, c.x(), base, c.z(), height, solid);
+                        if (solid >= 5) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, true, solid);
+                        }
                     }
                     System.out.flush();
                 }

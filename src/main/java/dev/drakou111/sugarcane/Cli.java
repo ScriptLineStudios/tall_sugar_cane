@@ -1,6 +1,12 @@
 package dev.drakou111.sugarcane;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Properties;
+import java.util.Scanner;
 
 /**
  * Single entry point for everything in this project, so the shaded jar can be run
@@ -12,6 +18,9 @@ import java.util.Arrays;
  * </pre>
  */
 public final class Cli {
+
+    private static final String CONFIG_FILE = "config.properties";
+    private static String reporterUsername;
 
     private Cli() {
     }
@@ -92,6 +101,9 @@ public final class Cli {
             usage();
             return;
         }
+
+        setupUser();
+
         for (Command command : COMMANDS) {
             if (command.name().equals(args[0])) {
                 command.runner().run(Arrays.copyOfRange(args, 1, args.length));
@@ -101,6 +113,42 @@ public final class Cli {
         System.err.println("unknown command: " + args[0]);
         usage();
         System.exit(2);
+    }
+
+    private static void setupUser() {
+        File configFile = new File(CONFIG_FILE);
+        Properties props = new Properties();
+
+        if (configFile.exists()) {
+            try (FileInputStream in = new FileInputStream(configFile)) {
+                props.load(in);
+                reporterUsername = props.getProperty("username");
+            } catch (IOException e) {
+                System.err.println("Failed to read " + CONFIG_FILE + ", proceeding without username.");
+            }
+        }
+
+        if (reporterUsername == null || reporterUsername.trim().isEmpty()) {
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Enter your username for reporting finds: ");
+            reporterUsername = scanner.nextLine().trim();
+
+            if (reporterUsername.isEmpty()) {
+                reporterUsername = "Anonymous";
+            }
+
+            props.setProperty("username", reporterUsername);
+            try (FileOutputStream out = new FileOutputStream(configFile)) {
+                props.store(out, "Sugarcane Finder User Configuration");
+                System.out.println("Saved username to " + CONFIG_FILE);
+            } catch (IOException e) {
+                System.err.println("Failed to save config file: " + e.getMessage());
+            }
+        }
+    }
+
+    public static String getReporterUsername() {
+        return reporterUsername != null ? reporterUsername : "Anonymous";
     }
 
     private static void usage() {
