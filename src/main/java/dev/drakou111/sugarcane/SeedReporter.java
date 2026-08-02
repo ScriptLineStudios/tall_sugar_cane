@@ -1,0 +1,54 @@
+package dev.drakou111.sugarcane;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+public class SeedReporter {
+
+    // Paste your Google Apps Script Web App URL here
+    private static final String WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwGV0yV85C-CCfqbdHOn9mKofMd5nn42Yp64H9oTW1qhgsjPR8Mwy382hJvarE1-TVe/exec";
+    private final HttpClient httpClient;
+
+    public SeedReporter() {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.ALWAYS) // Important: Apps Script redirects requests
+                .build();
+    }
+
+    public void reportToDataBase(long seed, int x, int base, int z, int biome, int chunkX, int chunkZ, boolean isCrossChunk, int height) {
+        String username = Cli.getReporterUsername();
+
+        String jsonPayload = String.format(
+                "{\"username\":\"%s\",\"seed\":%d,\"x\":%d,\"base\":%d,\"z\":%d,\"biome\":%d,\"chunkX\":%d,\"chunkZ\":%d,\"isCrossChunk\":%b,\"height\":%d}",
+                escapeJson(username), seed, x, base, z, biome, chunkX, chunkZ, isCrossChunk, height
+        );
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(WEB_APP_URL))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                System.out.println("Successfully reported find to spreadsheet");
+            } else {
+                System.err.println("Failed to report find. HTTP Code: " + response.statusCode());
+            }
+        } catch (Exception e) {
+            System.err.println("Error sending report: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private String escapeJson(String input) {
+        if (input == null) return "";
+        return input.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+}

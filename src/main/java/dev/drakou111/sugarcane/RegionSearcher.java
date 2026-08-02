@@ -66,6 +66,8 @@ public final class RegionSearcher {
      */
     static final int MAX_REGION = 32;
 
+    static SeedReporter reporter = new SeedReporter();
+
     /**
      * Region side for a search box of the given chunk radius: big enough that the
      * whole box lands in the interior, since border chunks are never searched.
@@ -170,7 +172,7 @@ public final class RegionSearcher {
             }, "search-" + t);
             pool[t].start();
         }
-        Progress progress = new Progress(stats, start, nextSeed, lastSeed);
+        Progress progress = new Progress(stats, start, nextSeed, lastSeed, firstSeed);
         progress.setDaemon(true);
         progress.start();
         for (Thread thread : pool) {
@@ -303,12 +305,14 @@ public final class RegionSearcher {
         private final long start;
         private final AtomicLong nextSeed;
         private final long lastSeed;
+        private final long firstSeed;
 
-        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed) {
+        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed, long firstSeed) {
             this.stats = stats;
             this.start = start;
             this.nextSeed = nextSeed;
             this.lastSeed = lastSeed;
+            this.firstSeed = firstSeed;
         }
 
         @Override
@@ -320,12 +324,20 @@ public final class RegionSearcher {
                     return;
                 }
                 long ms = System.currentTimeMillis() - start;
+                long seedsSearched = (nextSeed.get() - firstSeed);
+                long totalSeeds = (lastSeed - firstSeed - 1);
+
                 System.out.printf("[%4.1f min] seeds done ~%d/%d, searched %d chunks (%.0f/s), "
-                                + "cane %d, stacked %d, tallest %d%n",
-                        ms / 60000.0, Math.max(0, nextSeed.get() - 1), lastSeed,
+                                + "cane %d, stacked %d, tallest %d, currentSeed %d",
+                        ms / 60000.0,
+                        seedsSearched,
+                        totalSeeds,
                         stats.chunksSearched.get(),
                         stats.chunksSearched.get() * 1000.0 / Math.max(1, ms),
-                        stats.caneColumns.get(), stats.stackedColumns.get(), stats.tallest.get());
+                        stats.caneColumns.get(),
+                        stats.stackedColumns.get(),
+                        stats.tallest.get(),
+                        nextSeed.get());
                 System.out.flush();
             }
         }
@@ -769,21 +781,23 @@ public final class RegionSearcher {
                     while (world.getBlock(c.x(), base - 1, c.z()) == Blocks.SUGAR_CANE) {
                         base--;
                     }
-                    // Only the part one chunk built by itself is real. A column two
-                    // chunks cooperated on collapses to its base run when the game
-                    // decorates them the other way round, and the game's order depends
-                    // on how the world was loaded, not on the seed.
                     int solid = world.caneRunFromOneChunk(c.x(), base, c.z());
                     if (solid >= report) {
                         stats.hits.incrementAndGet();
                         System.out.printf(
                                 "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d%n",
                                 seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ);
+                        if (solid >= 5 && Cli.reportFinds) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                        }
                     } else {
                         System.out.printf(
                                 "cross-chunk seed %d  x=%d y=%d z=%d  height %d only with a "
                                         + "neighbour's help, %d on its own - not verifiable%n",
                                 seed, c.x(), base, c.z(), height, solid);
+                        if (solid >= 5 && Cli.reportFinds) {
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                        }
                     }
                     System.out.flush();
                 }

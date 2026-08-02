@@ -1,6 +1,15 @@
 package dev.drakou111.sugarcane;
 
+import java.awt.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Properties;
+import java.util.Scanner;
 
 /**
  * Single entry point for everything in this project, so the shaded jar can be run
@@ -12,6 +21,11 @@ import java.util.Arrays;
  * </pre>
  */
 public final class Cli {
+
+    private static final String CONFIG_FILE = "config.properties";
+    private static String reporterUsername;
+
+    public static boolean reportFinds;
 
     private Cli() {
     }
@@ -87,11 +101,26 @@ public final class Cli {
     };
 
     public static void main(String[] args) throws Exception {
+        Desktop desktop = Desktop.getDesktop();
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")
                 || args[0].equals("help")) {
             usage();
             return;
         }
+
+        if (args[0].equals("-s") || args[0].equals("--sheet")) {
+            try {
+                URI oURL = new URI("https://docs.google.com/spreadsheets/d/1dhSnz-PFo3yl5uOFxqGmzDXg2O7JHACnqSlmLw_1Ang/edit?usp=sharing");
+                desktop.browse(oURL);
+                return;
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
+
+        setupUser();
+
         for (Command command : COMMANDS) {
             if (command.name().equals(args[0])) {
                 command.runner().run(Arrays.copyOfRange(args, 1, args.length));
@@ -101,6 +130,52 @@ public final class Cli {
         System.err.println("unknown command: " + args[0]);
         usage();
         System.exit(2);
+    }
+
+    private static void setupUser() {
+        File configFile = new File(CONFIG_FILE);
+        Properties props = new Properties();
+
+        if (configFile.exists()) {
+            try (FileInputStream in = new FileInputStream(configFile)) {
+                props.load(in);
+                reporterUsername = props.getProperty("username");
+            } catch (IOException e) {
+                System.err.println("Failed to read " + CONFIG_FILE + ", proceeding without username.");
+            }
+        }
+
+        Scanner scanner1 = new Scanner(System.in);
+        System.out.print("Do you want to report your finds to the spreadsheet, which you can open by doing java -jar sugarcane.jar -s? (y/n): ");
+        String report = scanner1.nextLine().trim();
+        if (report.equals("y") || report.equals("yes") || report.equals("Yes") || report.equals("Y")) {
+            reportFinds = true;
+        } else {
+            reportFinds = false;
+            return;
+        }
+
+        if (reporterUsername == null || reporterUsername.trim().isEmpty()) {
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Enter your username for reporting finds: ");
+            reporterUsername = scanner.nextLine().trim();
+
+            if (reporterUsername.isEmpty()) {
+                reporterUsername = "Anonymous";
+            }
+
+            props.setProperty("username", reporterUsername);
+            try (FileOutputStream out = new FileOutputStream(configFile)) {
+                props.store(out, "Sugarcane Finder User Configuration");
+                System.out.println("Saved username to " + CONFIG_FILE);
+            } catch (IOException e) {
+                System.err.println("Failed to save config file: " + e.getMessage());
+            }
+        }
+    }
+
+    public static String getReporterUsername() {
+        return reporterUsername != null ? reporterUsername : "Anonymous";
     }
 
     private static void usage() {
