@@ -328,7 +328,7 @@ public final class RegionSearcher {
                 long totalSeeds = (lastSeed - firstSeed - 1);
 
                 System.out.printf("[%4.1f min] seeds done ~%d/%d, searched %d chunks (%.0f/s), "
-                                + "cane %d, stacked %d, tallest %d%n, currentSeed %d",
+                                + "cane %d, stacked %d, tallest %d, currentSeed %d",
                         ms / 60000.0,
                         seedsSearched,
                         totalSeeds,
