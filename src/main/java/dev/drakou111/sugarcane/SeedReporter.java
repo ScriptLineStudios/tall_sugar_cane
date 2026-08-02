@@ -9,7 +9,7 @@ import java.time.Duration;
 public class SeedReporter {
 
     // Paste your Google Apps Script Web App URL here
-    private static final String WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwGV0yV85C-CCfqbdHOn9mKofMd5nn42Yp64H9oTW1qhgsjPR8Mwy382hJvarE1-TVe/exec";
+    private static final String WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwtYOsLc2kRDX_wzh1ap1vk8bpGIhhT4TeiZ5iQPsajPAdqvYh8GV3XjDMXdxIBR6_s/exec";
     private final HttpClient httpClient;
 
     public SeedReporter() {
