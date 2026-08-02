@@ -19,12 +19,12 @@ public class SeedReporter {
                 .build();
     }
 
-    public void reportToDataBase(long seed, int x, int base, int z, int biome, int chunkX, int chunkZ, boolean isCrossChunk, int height) {
+    public void reportToDataBase(long seed, int x, int base, int z, int biome, int chunkX, int chunkZ, boolean isCrossChunk, int height, int spawnX, int spawnZ, long away) {
         String username = Cli.getReporterUsername();
 
         String jsonPayload = String.format(
-                "{\"username\":\"%s\",\"seed\":%d,\"x\":%d,\"base\":%d,\"z\":%d,\"biome\":%d,\"chunkX\":%d,\"chunkZ\":%d,\"isCrossChunk\":%b,\"height\":%d}",
-                escapeJson(username), seed, x, base, z, biome, chunkX, chunkZ, isCrossChunk, height
+                "{\"username\":\"%s\",\"seed\":%d,\"x\":%d,\"base\":%d,\"z\":%d,\"biome\":%d,\"chunkX\":%d,\"chunkZ\":%d,\"isCrossChunk\":%b,\"height\":%d,\"spawnX\":%d,\"spawnZ\":%d,\"distance\":%d}}",
+                escapeJson(username), seed, x, base, z, biome, chunkX, chunkZ, isCrossChunk, height, spawnX, spawnZ, away
         );
 
         HttpRequest request = HttpRequest.newBuilder()

@@ -46,8 +46,13 @@ java -jar target/sugarcane.jar inspect 1500050556 91 16 65 6
 A find prints as:
 
 ```
-HIT seed 1500050556  x=91 y=16 z=65  height 5  biome 48  chunk 5,4
+HIT seed 1500050556  x=91 y=16 z=65  height 5  biome 48  chunk 5,4  spawn ~-40,8 (~144 blocks away)
 ```
+
+The spawn position is the centre of that world's **spawn chunk**, so both it and
+the distance are good to about ±8 blocks — enough to know whether a find is a
+short swim or an expedition. It is computed only when there is something to
+print, so it costs the search nothing.
 
 The height reported is the run a **single chunk built by itself**. A column can
 also be built by two chunks cooperating across a border, but only if they decorate
@@ -57,7 +62,7 @@ pregeneration rather than by anything a player can do. Those print as
 
 ### Search arguments
 
-`search <firstSeed> <seeds> <chunkRadius> <threads> <minHeight> [mode]`
+`search <firstSeed> <seeds> <chunkRadius> <threads> <minHeight> [mode] [flags]`
 
 - **chunkRadius** bounds how far from spawn a find may be, in chunks. This is
   nearly free: 6 (±96 blocks) runs as fast as 32 (±512). It gets expensive below
@@ -72,6 +77,9 @@ pregeneration rather than by anything a player can do. Those print as
   spawn always sits in a land biome, so fewer of the surrounding chunks are the
   ocean this search needs (30.8 per seed against 45.0). Verified against level.dat
   from five real generated worlds.
+- **`--update=<minutes>`** how often the progress line prints. Defaults to 1.
+  Fractions work (`--update=0.25`), and a long run that scrolls past is usually
+  better served by something like `--update=15`.
 
 Expect very roughly **one hit per 2 hours** on 24 cores at ~19,000 chunks/s, of
 which about half are 6 or taller. That rate is a projection from the measured

@@ -8,6 +8,7 @@ import dev.drakou111.sugarcane.gen.CarverConfig;
 import dev.drakou111.sugarcane.gen.CaveCarver;
 import dev.drakou111.sugarcane.gen.Disk;
 import dev.drakou111.sugarcane.gen.OreBlob;
+import dev.drakou111.sugarcane.gen.SpawnFinder;
 import dev.drakou111.sugarcane.gen.SugarCaneFeature;
 import dev.drakou111.sugarcane.gen.SurfaceBuilder;
 import dev.drakou111.sugarcane.gen.SurfaceConfig;
@@ -67,6 +68,10 @@ public final class RegionSearcher {
     static final int MAX_REGION = 32;
 
     static SeedReporter reporter = new SeedReporter();
+
+    /** How often the progress line prints, unless {@code --update=<minutes>} says otherwise. */
+    private static final long DEFAULT_UPDATE_MS = 60_000L;
+    private static final String UPDATE_FLAG = "--update=";
 
     /**
      * Region side for a search box of the given chunk radius: big enough that the
@@ -138,10 +143,13 @@ public final class RegionSearcher {
         final int probeTrials = args.length > 5 && args[5].startsWith("probe:")
                 ? Integer.parseInt(args[5].substring("probe:".length())) : 0;
         allBiomes = args.length > 5 && args[5].equals("diag-all");
+        // Flags rather than positions, so they can sit anywhere after the mode slot.
+        long updateMs = DEFAULT_UPDATE_MS;
         for (String arg : args) {
             if (arg.equals("--spawn")) {
                 centreOnSpawn = true;
-                break;
+            } else if (arg.startsWith(UPDATE_FLAG)) {
+                updateMs = updateMillis(arg.substring(UPDATE_FLAG.length()));
             }
         }
         final boolean diagnose = probeTrials > 0
@@ -151,10 +159,12 @@ public final class RegionSearcher {
         // geometry can be looked at in a real world.
         final boolean printSpots = args.length > 5 && args[5].equals("spots");
 
-        System.out.printf("seeds %d..%d, chunk radius %d, %d threads, reporting height >= %d%s%s%n",
+        System.out.printf("seeds %d..%d, chunk radius %d, %d threads, reporting height >= %d%s%s%s%n",
                 firstSeed, firstSeed + seeds - 1, radius, threads, report,
                 diagnose ? ", counting geometry" : "",
-                centreOnSpawn ? ", centred on world spawn" : "");
+                centreOnSpawn ? ", centred on world spawn" : "",
+                updateMs != DEFAULT_UPDATE_MS
+                        ? ", progress every " + updateMs / 60_000.0 + " min" : "");
 
         AtomicLong nextSeed = new AtomicLong(firstSeed);
         long lastSeed = firstSeed + seeds;
@@ -173,13 +183,27 @@ public final class RegionSearcher {
             }, "search-" + t);
             pool[t].start();
         }
-        Progress progress = new Progress(stats, start, nextSeed, lastSeed, firstSeed);
+        Progress progress = new Progress(stats, start, nextSeed, lastSeed, firstSeed, updateMs);
         progress.setDaemon(true);
         progress.start();
         for (Thread thread : pool) {
             thread.join();
         }
         stats.print(System.currentTimeMillis() - start);
+    }
+
+    /**
+     * The minutes written after {@code --update=}, in milliseconds. Fractions are
+     * allowed so a short run still shows progress; anything under a second is a
+     * typo rather than a request to spin, so it is rounded up to one.
+     */
+    private static long updateMillis(String minutes) {
+        double m = Double.parseDouble(minutes);
+        if (!(m > 0)) {
+            throw new IllegalArgumentException(
+                    UPDATE_FLAG + " needs a positive number of minutes, got " + minutes);
+        }
+        return Math.max(1000L, Math.round(m * 60_000.0));
     }
 
     private static String biomeLabel(int biome) {
@@ -307,20 +331,23 @@ public final class RegionSearcher {
         private final AtomicLong nextSeed;
         private final long lastSeed;
         private final long firstSeed;
+        private final long updateMs;
 
-        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed, long firstSeed) {
+        Progress(Stats stats, long start, AtomicLong nextSeed, long lastSeed, long firstSeed,
+                long updateMs) {
             this.stats = stats;
             this.start = start;
             this.nextSeed = nextSeed;
             this.lastSeed = lastSeed;
             this.firstSeed = firstSeed;
+            this.updateMs = updateMs;
         }
 
         @Override
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    Thread.sleep(60_000);
+                    Thread.sleep(updateMs);
                 } catch (InterruptedException e) {
                     return;
                 }
@@ -394,20 +421,40 @@ public final class RegionSearcher {
         private int centreChunkX;
         private int centreChunkZ;
 
+        /**
+         * This seed's spawn chunk, for reporting how far a find is from where the
+         * player arrives. Computed on demand and cached for the seed, because
+         * {@code spawnChunk} costs ~14 ms against the ~35 ms a whole seed takes —
+         * a third of the search if paid every time, and nothing at all if paid only
+         * when something is worth printing. {@code --spawn} has already paid it.
+         */
+        private long spawnPacked;
+        private boolean spawnKnown;
+
         /** Prepares this worker for a seed without searching anything yet. */
         void prepare(long seed) {
             this.seed = seed;
             this.biomes = new OverworldBiomeSource(MCVersion.v1_16_1, seed);
             dev.drakou111.sugarcane.gen.LayerCaches.enlarge(this.biomes);
             this.terrain = new Terrain(biomes);
+            spawnKnown = false;
             if (centreOnSpawn) {
-                long packed = dev.drakou111.sugarcane.gen.SpawnFinder.spawnChunk(biomes, seed);
-                centreChunkX = dev.drakou111.sugarcane.gen.SpawnFinder.chunkX(packed);
-                centreChunkZ = dev.drakou111.sugarcane.gen.SpawnFinder.chunkZ(packed);
+                spawnPacked = SpawnFinder.spawnChunk(biomes, seed);
+                spawnKnown = true;
+                centreChunkX = SpawnFinder.chunkX(spawnPacked);
+                centreChunkZ = SpawnFinder.chunkZ(spawnPacked);
             } else {
                 centreChunkX = 0;
                 centreChunkZ = 0;
             }
+        }
+
+        private long spawnChunk() {
+            if (!spawnKnown) {
+                spawnPacked = SpawnFinder.spawnChunk(biomes, seed);
+                spawnKnown = true;
+            }
+            return spawnPacked;
         }
 
         void searchSeed(long seed) {
@@ -783,21 +830,32 @@ public final class RegionSearcher {
                         base--;
                     }
                     int solid = world.caneRunFromOneChunk(c.x(), base, c.z());
+                    // Where the player arrives, and how far they then have to travel.
+                    // SpawnFinder resolves the spawn chunk, not the block inside it
+                    // (PlayerRespawnLogic picks that from real terrain), so this is
+                    // the chunk centre and the distance is good to about ±8 blocks.
+                    long spawn = spawnChunk();
+                    int spawnX = SpawnFinder.chunkX(spawn) * CHUNK + CHUNK / 2;
+                    int spawnZ = SpawnFinder.chunkZ(spawn) * CHUNK + CHUNK / 2;
+                    long away = Math.round(Math.hypot(c.x() - spawnX, c.z() - spawnZ));
                     if (solid >= report) {
                         stats.hits.incrementAndGet();
                         System.out.printf(
-                                "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d%n",
-                                seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ);
+                                "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d"
+                                        + "  spawn ~%d,%d (~%d blocks away)%n",
+                                seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ,
+                                spawnX, spawnZ, away);
                         if (solid >= 5 && Cli.reportFinds) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid, spawnX, spawnZ, away);
                         }
                     } else {
                         System.out.printf(
-                                "cross-chunk seed %d  x=%d y=%d z=%d  height %d only with a "
-                                        + "neighbour's help, %d on its own - not verifiable%n",
-                                seed, c.x(), base, c.z(), height, solid);
+                                "cross-chunk seed %d  x=%d y=%d z=%d  spawn ~%d,%d (~%d blocks "
+                                        + "away)  height %d only with a neighbour's help, %d on "
+                                        + "its own - not verifiable%n",
+                                seed, c.x(), base, c.z(), spawnX, spawnZ, away, height, solid);
                         if (solid >= 5 && Cli.reportFinds) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid);
+                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid, spawnX, spawnZ, away);
                         }
                     }
                     System.out.flush();

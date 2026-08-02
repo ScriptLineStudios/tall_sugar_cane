@@ -40,11 +40,12 @@ public final class Cli {
     private static final Command[] COMMANDS = {
             new Command("search",
                     "<firstSeed> <seedCount> <chunkRadius> <threads> <minHeight> "
-                            + "[diag|probe:N|spots] [--spawn]",
+                            + "[diag|probe:N|spots] [--spawn] [--update=<minutes>]",
                     "Search for sugar cane taller than 4. This is the main program. "
                             + "--spawn centres each seed's box on that world's spawn chunk "
                             + "rather than 0,0, so a find is one you can walk to; it costs "
-                            + "about 38% of the chunks per second.",
+                            + "about 38% of the chunks per second. --update sets how often "
+                            + "the progress line prints, in minutes (default 1).",
                     RegionSearcher::main),
             new Command("inspect",
                     "<seed> <x> <y> <z> [searchRadius]",
