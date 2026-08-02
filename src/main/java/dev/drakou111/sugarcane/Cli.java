@@ -1,9 +1,12 @@
 package dev.drakou111.sugarcane;
 
+import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.Scanner;
@@ -96,9 +99,21 @@ public final class Cli {
     };
 
     public static void main(String[] args) throws Exception {
+        Desktop desktop = Desktop.getDesktop();
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")
                 || args[0].equals("help")) {
             usage();
+            return;
+        }
+
+        if (args[0].equals("-s") || args[0].equals("--sheet")) {
+            try {
+                URI oURL = new URI("https://docs.google.com/spreadsheets/d/1dhSnz-PFo3yl5uOFxqGmzDXg2O7JHACnqSlmLw_1Ang/edit?usp=sharing");
+                desktop.browse(oURL);
+                return;
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
             return;
         }
 
