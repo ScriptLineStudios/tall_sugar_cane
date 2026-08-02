@@ -8,14 +8,13 @@ import java.time.Duration;
 
 public class SeedReporter {
 
-    // Paste your Google Apps Script Web App URL here
     private static final String WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwtYOsLc2kRDX_wzh1ap1vk8bpGIhhT4TeiZ5iQPsajPAdqvYh8GV3XjDMXdxIBR6_s/exec";
     private final HttpClient httpClient;
 
     public SeedReporter() {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.ALWAYS) // Important: Apps Script redirects requests
+                .followRedirects(HttpClient.Redirect.ALWAYS)
                 .build();
     }
 
