@@ -228,9 +228,6 @@ public final class SugarCaneFeature {
     }
 
     public static boolean canPlace(BlockView world, int x, int y, int z, boolean requireWater, int i, int n) {
-//        if (n == 7 && i == 17) {
-//            System.out.printf("=> %d %d %d %d\n", x, y, z, world.getBlock(x, y - 1, z));
-//        }
         if (!world.isAir(x, y, z)) {
 //            if (n == 1 && i == 5) {
 //                byte below = world.getBlock(x, y - 1, z);
@@ -245,13 +242,9 @@ public final class SugarCaneFeature {
         byte below = world.getBlock(x, y - 1, z);
         if (below != Blocks.SUGAR_CANE) {
             if (!(Blocks.isCaneSoil(below))) {
-//                if (n == 1 && i == 5) {
-//                    System.out.println("FUCK");
-//                }
                 return false;
             }
             if (requireWater && !canSurvive(world, x, y, z)) {
-
                 return false;
             }
         }

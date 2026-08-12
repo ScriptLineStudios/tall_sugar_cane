@@ -1,6 +1,5 @@
 package dev.drakou111.sugarcane.gen;
 
-import kaptainwutax.biomeutils.biome.Biome;
 import kaptainwutax.biomeutils.source.OverworldBiomeSource;
 import kaptainwutax.noiseutils.perlin.OctavePerlinNoiseSampler;
 import kaptainwutax.noiseutils.utils.MathHelper;
@@ -8,8 +7,6 @@ import kaptainwutax.terrainutils.terrain.SurfaceGenerator;
 import kaptainwutax.terrainutils.utils.NoiseSettings;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The density field of {@code OverworldTerrainGenerator}, evaluated only up to a
@@ -230,10 +227,10 @@ public final class TruncatedNoise {
         int cellZ = Math.floorDiv(z, 4);
         double percentX = (double) Math.floorMod(x, 4) / 4.0;
         double percentZ = (double) Math.floorMod(z, 4) / 4.0;
-        double[] c00 = noiseColumn(cellX, cellZ, CELLS);
-        double[] c01 = noiseColumn(cellX, cellZ + 1, CELLS);
-        double[] c10 = noiseColumn(cellX + 1, cellZ, CELLS);
-        double[] c11 = noiseColumn(cellX + 1, cellZ + 1, CELLS);
+        double[] c00 = noiseColumn(cellX, cellZ);
+        double[] c01 = noiseColumn(cellX, cellZ + 1);
+        double[] c10 = noiseColumn(cellX + 1, cellZ);
+        double[] c11 = noiseColumn(cellX + 1, cellZ + 1);
 
         java.util.Arrays.fill(out, CUT, out.length, air);
         int height = 0;
@@ -261,7 +258,7 @@ public final class TruncatedNoise {
         return height == CUT ? -1 : height;
     }
 
-    private double[] noiseColumn(int cellX, int cellZ, int need) {
+    private double[] noiseColumn(int cellX, int cellZ) {
         int slot = slot(cellX, cellZ);
         if (slot >= 0) {
             double[] cached = columns[slot];
@@ -291,7 +288,7 @@ public final class TruncatedNoise {
         beginColumns(x, z);
 
         for (int y = from; y <= to; y++) {
-            double noise = sampleNoise(x, y, z);
+            double noise = sampleNoise(y);
             double fallOff = 1.0 - (double) y * 2.0 / (double) noiseSizeY + randomOffset;
             fallOff = fallOff * densityFactor + densityOffset;
             fallOff = (fallOff + biomeDepth) * biomeScale;
@@ -343,7 +340,7 @@ public final class TruncatedNoise {
         }
     }
 
-    private double sampleNoise(int x, int y, int z) {
+    private double sampleNoise(int y) {
         // The selector, eight octaves.
         double mainNoise = 0.0;
         double persistence = 1.0;
@@ -403,7 +400,7 @@ public final class TruncatedNoise {
 
     /** The 1.16 {@code random_density_offset} term. */
     private double randomDensityOffset(int x, int z) {
-        double noise = depth.sample((double) (x * 200), 10.0, (double) (z * 200), 1.0, 0.0, true);
+        double noise = depth.sample(x * 200, 10.0, z * 200, 1.0, 0.0, true);
         noise = noise < 0.0 ? -noise * 0.3 : noise;
         noise = noise * 24.575625 - 2.0;
         if (noise < 0.0) {
