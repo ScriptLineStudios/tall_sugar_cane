@@ -72,7 +72,7 @@ public final class Inspect {
         int originZ = chunkZ;
 
         worker.searchRegion2(originX, originZ, chunkX, chunkZ, worldSeed);
-        if (true) return;
+//        if (true) return;
 
         ArrayWorld world = worker.world;
 //        System.out.printf("%ncane columns within 6 blocks:%n");
@@ -177,10 +177,10 @@ public final class Inspect {
     public static void main(String[] args) throws IOException, InterruptedException {
         //search2(87402702807281L, -15513917,16281294);
         search2(12345, 143*16,29*16);
-        System.exit(1);
+//        System.exit(1);
 
-        int threads = 28;
-        String inputFile = "/home/scriptline/gaming/new/seeds_out.txt";
+        int threads = 1;
+        String inputFile = "seeds_out.txt";
 
         System.out.printf("Running on %d worker threads%n", threads);
 

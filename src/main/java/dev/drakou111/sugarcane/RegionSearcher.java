@@ -23,8 +23,8 @@ import java.util.HashMap;
 
 public final class RegionSearcher {
     // world size
-    public static final int WORLD_SIZE_X = 2;
-    public static final int WORLD_SIZE_Z = 1;
+    public static final int WORLD_SIZE_X = 1;
+    public static final int WORLD_SIZE_Z = 2;
 
     static final int SEA = 63;
     static final int CHUNK = 16;
@@ -105,32 +105,34 @@ public final class RegionSearcher {
             //targetChunkX += 1;
 
             // 19 chunk
-            buildChunk(targetChunkX, targetChunkZ);
-            runCarvers(targetChunkX, targetChunkZ);
+//            buildChunk(targetChunkX, targetChunkZ);
+//            runCarvers(targetChunkX, targetChunkZ);
+//            decorate(targetChunkX, targetChunkZ, worldSeed, true);
+
             // dirt chunk
-            buildChunk(targetChunkX + 1, targetChunkZ);
-            runCarvers(targetChunkX + 1, targetChunkZ);
+            buildChunk(targetChunkX, targetChunkZ + 1);
+            runCarvers(targetChunkX, targetChunkZ + 1);
+            decorate(targetChunkX, targetChunkZ + 1, worldSeed, true);
 
-            HashMap<Byte, String> blockSymbols = new HashMap<>() {{
-                put(Blocks.AIR, " ");
-                put(Blocks.SOLID, "#");
-                put(Blocks.WATER, "~");
-                put(Blocks.GRAVEL, "&");
-                put(Blocks.SAND, "&");
-                put(Blocks.FLOWING_WATER, "~");
-            }};
-
-            int y = 27;
-            for (int z = targetChunkZ * 16; z < targetChunkZ * 16 + 16; z++) {
-                for (int x = targetChunkX * 16; x < targetChunkX * 16 + 32; x++) {
-                    System.out.print(blockSymbols.get(world.getBlock(x, y, z)));
-                }
-                System.out.println();
-            }
-            System.out.printf("/tp %d %d %d\n", targetChunkX * 16, y, targetChunkZ * 16);
+//            HashMap<Byte, String> blockSymbols = new HashMap<>() {{
+//                put(Blocks.AIR, " ");
+//                put(Blocks.SOLID, "#");
+//                put(Blocks.WATER, "~");
+//                put(Blocks.GRAVEL, "&");
+//                put(Blocks.SAND, "&");
+//                put(Blocks.FLOWING_WATER, "~");
+//            }};
+//
+//            int y = 27;
+//            for (int z = targetChunkZ * 16; z < targetChunkZ * 16 + 32; z++) {
+//                for (int x = targetChunkX * 16; x < targetChunkX * 16 + 16; x++) {
+//                    System.out.print(blockSymbols.get(world.getBlock(x, y, z)));
+//                }
+//                System.out.println();
+//            }
+//            System.out.printf("/tp %d %d %d\n", targetChunkX * 16, y, targetChunkZ * 16);
 
             // dirt chunk decorate
-            //decorate(targetChunkX, targetChunkZ + 1, worldSeed, true);
         }
 
         private int mapIndex(int x, int z) {
@@ -286,6 +288,10 @@ public final class RegionSearcher {
             runDirtBlobs(decorationSeed, chunkX, chunkZ);
             //runDisks(decorationSeed, chunkX, chunkZ);
 
+            /*
+            chunk: 143, 30 -> (2288, 480)
+             */
+
             int biome = BiomeIds.noiseGen(biomes, chunkX * 4 + 2, chunkZ * 4 + 2);
             int count = BiomeCaneConfig.count(biome);
             int index = BiomeCaneConfig.index(biome);
@@ -316,7 +322,6 @@ public final class RegionSearcher {
         }
 
         private void runDirtBlobs(long decorationSeed, int chunkX, int chunkZ) {
-
             boolean target = chunkX == 1562154 && chunkZ == -477569;
             target = false;
 

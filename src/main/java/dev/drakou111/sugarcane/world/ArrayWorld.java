@@ -118,10 +118,16 @@ public final class ArrayWorld implements BlockView {
 
     @Override
     public byte getBlock(int x, int y, int z) {
-        if (y < 0 || y >= HEIGHT || !inside(x, z)) {
-            throw new RuntimeException("bad coords");
-            //return Blocks.SOLID;
+        try {
+            if (y < 0 || y >= HEIGHT || !inside(x, z)) {
+//            throw new RuntimeException("bad coords");
+                return Blocks.SOLID;
+            }
         }
+        catch (RuntimeException e) {
+            return Blocks.SOLID;
+        }
+
         return blocks[columnIndex(x, z) * HEIGHT + y];
     }
 
