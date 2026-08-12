@@ -480,7 +480,7 @@ public final class RegionSearcher {
                     cx += region - 2) {
                 for (int cz = centreChunkZ - radius - 1; cz + 1 <= centreChunkZ + radius;
                         cz += region - 2) {
-                    searchRegion(cx, cz);
+                    searchRegion(cx, cz, 0, 0, 0);
                     terrain.clearCaches();
                 }
             }
@@ -490,7 +490,42 @@ public final class RegionSearcher {
             return localChunkX * region + localChunkZ;
         }
 
-        void searchRegion(int chunkX0, int chunkZ0) {
+        void searchRegion2(int chunkX0, int chunkZ0, int targetChunkX, int targetChunkZ, long worldSeed) {
+            regionChunkX = chunkX0;
+            regionChunkZ = chunkZ0;
+
+            boolean any = false;
+            if (reportedBases != null) {
+                reportedBases.clear();
+            }
+            world.reset(chunkX0 * CHUNK, chunkZ0 * CHUNK);
+            terrain.beginRegion(chunkX0 * CHUNK, chunkZ0 * CHUNK, region * CHUNK);
+
+            // Z + 1 is the "base chunk" whereas Z is the 16 tall chunk
+//            buildChunk(targetChunkX, targetChunkZ + 1);
+//            runCarvers(targetChunkX, targetChunkZ + 1);
+
+//            for (int dx = 0; dx <= 1; dx++) {
+//                for (int dz = 0; dz <= 1; dz++) {
+//                    buildChunk(targetChunkX + dx, targetChunkZ + dz);
+//                }
+//            }
+
+            // 19 chunk
+//            buildChunk(targetChunkX, targetChunkZ);
+//            runCarvers(targetChunkX, targetChunkZ);
+
+            // dirt chunk
+            buildChunk(targetChunkX, targetChunkZ + 1);
+            runCarvers(targetChunkX, targetChunkZ + 1);
+
+            // dirt chunk decorate
+            decorate(targetChunkX, targetChunkZ + 1, worldSeed, true);
+
+            stats.chunksSearched.addAndGet(0);
+        }
+
+        void searchRegion(int chunkX0, int chunkZ0, int targetChunkX, int targetChunkZ, long worldSeed) {
             regionChunkX = chunkX0;
             regionChunkZ = chunkZ0;
 
@@ -499,116 +534,138 @@ public final class RegionSearcher {
                 reportedBases.clear();
             }
             for (int i = 0; i < region * region; i++) {
-                candidate[i] = false;
-                supported[i] = false;
-                examined[i] = false;
-                searchable[i] = false;
-                needed[i] = false;
+//                candidate[i] = false;
+//                supported[i] = false;
+//                examined[i] = false;
+//                searchable[i] = false;
+//                needed[i] = false;
             }
+
             // Cheap first pass: the biome at the chunk centre decides the feature
             // list, so it alone says whether a chunk is worth searching.
-            for (int lx = 0; lx < region; lx++) {
-                for (int lz = 0; lz < region; lz++) {
-                    int cx = chunkX0 + lx, cz = chunkZ0 + lz;
-                    int biome = BiomeIds.noiseGen(biomes, cx * 4 + 2, cz * 4 + 2);
-                    if ((allBiomes || isSearchableOcean(biome))
-                            && BiomeCaneConfig.hasSugarCane(biome)) {
-                        candidate[regionIndex(lx, lz)] = true;
-                        any = true;
-                    }
-                }
-            }
-            if (!any) {
-                return;
-            }
+//            for (int lx = 0; lx < region; lx++) {
+//                for (int lz = 0; lz < region; lz++) {
+//                    int cx = chunkX0 + lx, cz = chunkZ0 + lz;
+////                    int biome = BiomeIds.noiseGen(biomes, cx * 4 + 2, cz * 4 + 2);
+//                    if (true) {
+//                        candidate[regionIndex(lx, lz)] = true;
+//                        any = true;
+//                    }
+//                }
+//            }
+//            if (!any) {
+//                return;
+//            }
 
             // A candidate is searchable only if it and all eight neighbours are
             // inside the region and have a surface builder we implement.
-            for (int lx = 0; lx < region; lx++) {
-                for (int lz = 0; lz < region; lz++) {
-                    if (!candidate[regionIndex(lx, lz)]) {
-                        continue;
-                    }
-                    if (lx == 0 || lz == 0 || lx == region - 1 || lz == region - 1) {
-                        continue;
-                    }
-                    // Keep the find near the origin: what a search costs is the
-                    // number of chunks examined, not where they are, so bounding
-                    // the distance is free as long as the seed count makes up for
-                    // the smaller box.
-                    int cx = regionChunkX + lx, cz = regionChunkZ + lz;
-                    if (cx < centreChunkX - radius || cx > centreChunkX + radius
-                            || cz < centreChunkZ - radius || cz > centreChunkZ + radius) {
-                        continue;
-                    }
-                    // Mineshafts are not simulated, and their air is written with
-                    // setBlock at UNDERGROUND_STRUCTURES - before the ores and the
-                    // cane - so it never floods and this project simply cannot see
-                    // it. Measured against pre-flood chunks, 81% of all the air
-                    // this simulation misses lies within three chunks of a
-                    // mineshaft start, for 19% of the chunks. Missing air there
-                    // flips cane tries and desynchronises the whole chunk's stream,
-                    // so those chunks are skipped rather than searched wrongly.
-                    if (mineshaftNear(cx, cz)) {
-                        continue;
-                    }
-                    boolean ok = true;
-                    for (int dx = -1; dx <= 1 && ok; dx++) {
-                        for (int dz = -1; dz <= 1 && ok; dz++) {
-                            ok = columnBiomesSupported(lx + dx, lz + dz);
-                        }
-                    }
-                    searchable[regionIndex(lx, lz)] = ok;
-                }
-            }
-            boolean anySearchable = false;
-            for (int lx = 1; lx < region - 1; lx++) {
-                for (int lz = 1; lz < region - 1; lz++) {
-                    if (!searchable[regionIndex(lx, lz)]) {
-                        continue;
-                    }
-                    anySearchable = true;
-                    for (int dx = -1; dx <= 1; dx++) {
-                        for (int dz = -1; dz <= 1; dz++) {
-                            needed[regionIndex(lx + dx, lz + dz)] = true;
-                        }
-                    }
-                }
-            }
-            if (!anySearchable) {
-                return;
-            }
+//            for (int lx = 0; lx < region; lx++) {
+//                for (int lz = 0; lz < region; lz++) {
+//                    if (!candidate[regionIndex(lx, lz)]) {
+//                        continue;
+//                    }
+//                    if (lx == 0 || lz == 0 || lx == region - 1 || lz == region - 1) {
+//                        continue;
+//                    }
+//                    // Keep the find near the origin: what a search costs is the
+//                    // number of chunks examined, not where they are, so bounding
+//                    // the distance is free as long as the seed count makes up for
+//                    // the smaller box.
+//
+//                    int cx = regionChunkX + lx, cz = regionChunkZ + lz;
+////                    if (cx < centreChunkX - radius || cx > centreChunkX + radius
+////                            || cz < centreChunkZ - radius || cz > centreChunkZ + radius) {
+////                        continue;
+////                    }
+////                    System.out.println("HERE");
+//
+//                    // Mineshafts are not simulated, and their air is written with
+//                    // setBlock at UNDERGROUND_STRUCTURES - before the ores and the
+//                    // cane - so it never floods and this project simply cannot see
+//                    // it. Measured against pre-flood chunks, 81% of all the air
+//                    // this simulation misses lies within three chunks of a
+//                    // mineshaft start, for 19% of the chunks. Missing air there
+//                    // flips cane tries and desynchronises the whole chunk's stream,
+//                    // so those chunks are skipped rather than searched wrongly.
+//                    if (mineshaftNear(cx, cz)) {
+//                        continue;
+//                    }
+//                    boolean ok = true;
+//                    for (int dx = -1; dx <= 1 && ok; dx++) {
+//                        for (int dz = -1; dz <= 1 && ok; dz++) {
+//                            ok = columnBiomesSupported(lx + dx, lz + dz);
+//                        }
+//                    }
+//                    searchable[regionIndex(lx, lz)] = ok;
+//                }
+//            }
+//            boolean anySearchable = false;
+//            for (int lx = 1; lx < region - 1; lx++) {
+//                for (int lz = 1; lz < region - 1; lz++) {
+//                    if (!searchable[regionIndex(lx, lz)]) {
+//                        continue;
+//                    }
+//                    anySearchable = true;
+//                    for (int dx = -1; dx <= 1; dx++) {
+//                        for (int dz = -1; dz <= 1; dz++) {
+//                            needed[regionIndex(lx + dx, lz + dz)] = true;
+//                        }
+//                    }
+//                }
+//            }
 
+//            if (!anySearchable) {
+//                return;
+//            }
             world.reset(chunkX0 * CHUNK, chunkZ0 * CHUNK);
             terrain.beginRegion(chunkX0 * CHUNK, chunkZ0 * CHUNK, region * CHUNK);
-            int generated = 0;
-            for (int lx = 0; lx < region; lx++) {
-                for (int lz = 0; lz < region; lz++) {
-                    if (needed[regionIndex(lx, lz)]) {
-                        buildChunk(chunkX0 + lx, chunkZ0 + lz);
-                        generated++;
-                    }
-                }
-            }
-            for (int lx = 0; lx < region; lx++) {
-                for (int lz = 0; lz < region; lz++) {
-                    if (needed[regionIndex(lx, lz)]) {
-                        runCarvers(chunkX0 + lx, chunkZ0 + lz);
-                    }
-                }
-            }
-            int searched = 0;
-            for (int lx = 0; lx < region; lx++) {
-                for (int lz = 0; lz < region; lz++) {
-                    if (!searchable[regionIndex(lx, lz)]) {
-                        continue;
-                    }
-                    decorate(chunkX0 + lx, chunkZ0 + lz);
-                    searched++;
-                }
-            }
-            stats.chunksGenerated.addAndGet(generated);
-            stats.chunksSearched.addAndGet(searched);
+//            int generated = 0;
+//            for (int lx = 0; lx < region; lx++) {
+//                for (int lz = 0; lz < region; lz++) {
+//                    if (needed[regionIndex(lx, lz)]) {
+//                        buildChunk(chunkX0 + lx, chunkZ0 + lz);
+//                        generated++;
+//                    }
+//                }
+//            }
+//            for (int lx = 0; lx < region; lx++) {
+//                for (int lz = 0; lz < region; lz++) {
+//                    if (needed[regionIndex(lx, lz)]) {
+//                        runCarvers(chunkX0 + lx, chunkZ0 + lz);
+//                    }
+//                }
+//            }
+            buildChunk(targetChunkX, targetChunkZ);
+            runCarvers(targetChunkX, targetChunkZ);
+//            decorate(targetChunkX, targetChunkZ, targetChunkX, targetChunkZ, worldSeed, false);
+//
+//            buildChunk(targetChunkX - 1, targetChunkZ);
+//            runCarvers(targetChunkX - 1, targetChunkZ);
+//            decorate(targetChunkX - 1, targetChunkZ, targetChunkX - 1, targetChunkZ, worldSeed);
+
+//            buildChunk(targetChunkX - 1, targetChunkZ);
+//            runCarvers(targetChunkX - 1, targetChunkZ);
+//            decorate(targetChunkX - 1, targetChunkZ, targetChunkX, targetChunkZ, worldSeed);
+
+//            buildChunk(targetChunkX - 1, targetChunkZ);
+//            runCarvers(targetChunkX - 1, targetChunkZ);
+//            decorate(targetChunkX - 1, targetChunkZ, targetChunkX - 1, targetChunkZ, worldSeed);
+
+//            int searched = 0;
+//            for (int lx = 0; lx < region; lx++) {
+//                for (int lz = 0; lz < region; lz++) {
+////                    if (!searchable[regionIndex(lx, lz)]) {
+////                        continue;
+////                    }
+////                    if (target) {
+////                        System.out.println("here");
+////                    }
+//                    decorate(chunkX0 + lx, chunkZ0 + lz, targetChunkX, targetChunkZ, worldSeed);
+//                    searched++;
+//                }
+//            }
+//            stats.chunksGenerated.addAndGet(generated);
+            stats.chunksSearched.addAndGet(0);
         }
 
         /**
@@ -617,6 +674,7 @@ public final class RegionSearcher {
          * neighbourhood test asks about the same chunk up to nine times.
          */
         private boolean columnBiomesSupported(int localChunkX, int localChunkZ) {
+
             int index = regionIndex(localChunkX, localChunkZ);
             if (examined[index]) {
                 return supported[index];
@@ -775,10 +833,6 @@ public final class RegionSearcher {
 
             for (int sx = chunkX - CarverConfig.CARVE_RADIUS; sx <= chunkX + CarverConfig.CARVE_RADIUS; sx++) {
                 for (int sz = chunkZ - CarverConfig.CARVE_RADIUS; sz <= chunkZ + CarverConfig.CARVE_RADIUS; sz++) {
-                    // GenerationStep.Carving.AIR: cave at index 0, canyon at 1.
-                    if (CarverConfig.isStartChunk(random, seed, 0, sx, sz, caveProbability)) {
-                        cave.carve(random, sx, sz);
-                    }
                     if (CarverConfig.isStartChunk(random, seed, 1, sx, sz, CarverConfig.CANYON)) {
                         canyon.carve(random, sx, sz);
                     }
@@ -787,27 +841,23 @@ public final class RegionSearcher {
             if (!ocean) {
                 return;
             }
+//            System.out.println("==================");
             for (int sx = chunkX - CarverConfig.CARVE_RADIUS; sx <= chunkX + CarverConfig.CARVE_RADIUS; sx++) {
                 for (int sz = chunkZ - CarverConfig.CARVE_RADIUS; sz <= chunkZ + CarverConfig.CARVE_RADIUS; sz++) {
-                    // GenerationStep.Carving.LIQUID: the underwater canyon is
-                    // index 0 and the underwater cave index 1, and the salt
-                    // restarts from 0 for the step.
-                    if (CarverConfig.isStartChunk(random, seed, 0, sx, sz,
-                            CarverConfig.UNDERWATER_CANYON)) {
+                    if (CarverConfig.isStartChunk(random, seed, 0, sx, sz, CarverConfig.UNDERWATER_CANYON)) {
                         underwaterCanyon.carve(random, sx, sz);
-                    }
-                    if (CarverConfig.isStartChunk(random, seed, 1, sx, sz,
-                            CarverConfig.UNDERWATER_CAVE)) {
-                        underwaterCave.carve(random, sx, sz);
                     }
                 }
             }
         }
 
         /** UNDERGROUND_ORES then VEGETAL_DECORATION for one chunk, as the game does. */
-        private void decorate(int chunkX, int chunkZ) {
+        private void decorate(int chunkX, int chunkZ, long worldSeed, boolean lazy) {
             world.setDecoratingChunk(chunkX, chunkZ);
             long decorationSeed = random.setDecorationSeed(seed, chunkX * CHUNK, chunkZ * CHUNK);
+            if (lazy) {
+//                System.out.printf("%d %d -> %d\n", chunkX, chunkZ, decorationSeed & ((1L << 48)-1));
+            }
             runDirtBlobs(decorationSeed, chunkX, chunkZ);
             runDisks(decorationSeed, chunkX, chunkZ);
             if (diagnose) {
@@ -832,8 +882,8 @@ public final class RegionSearcher {
             java.util.List<String> trace =
                     chunkX == traceChunkX && chunkZ == traceChunkZ
                             ? new java.util.ArrayList<>() : null;
-            for (SugarCaneFeature.Column c : SugarCaneFeature.place(
-                    world, decorationSeed, index, count, chunkX, chunkZ, true, trace)) {
+
+            for (SugarCaneFeature.Column c : SugarCaneFeature.place(world, decorationSeed, index, count, chunkX, chunkZ, true, trace, chunkX, chunkZ, worldSeed, lazy)) {
                 stats.caneColumns.incrementAndGet();
                 int height = world.caneRunThrough(c.x(), c.y(), c.z());
                 stats.tallest(height);
@@ -860,7 +910,7 @@ public final class RegionSearcher {
                     int spawnX = SpawnFinder.chunkX(spawn) * CHUNK + CHUNK / 2;
                     int spawnZ = SpawnFinder.chunkZ(spawn) * CHUNK + CHUNK / 2;
                     long away = Math.round(Math.hypot(c.x() - spawnX, c.z() - spawnZ));
-                    if (solid >= report) {
+                    if (solid >= 4) {
                         stats.hits.incrementAndGet();
                         System.out.printf(
                                 "HIT seed %d  x=%d y=%d z=%d  height %d  biome %d  chunk %d,%d"
@@ -868,7 +918,7 @@ public final class RegionSearcher {
                                 seed, c.x(), base, c.z(), solid, biome, chunkX, chunkZ,
                                 spawnX, spawnZ, away);
                         if (solid >= 5 && Cli.reportFinds) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid, spawnX, spawnZ, away);
+//                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, false, solid, spawnX, spawnZ, away);
                         }
                     } else {
                         System.out.printf(
@@ -877,17 +927,17 @@ public final class RegionSearcher {
                                         + "its own - not verifiable%n",
                                 seed, c.x(), base, c.z(), spawnX, spawnZ, away, height, solid);
                         if (Cli.reportFinds) {
-                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, true, solid, spawnX, spawnZ, away);
+//                            reporter.reportToDataBase(seed, c.x(), base, c.z(), biome, chunkX, chunkZ, true, solid, spawnX, spawnZ, away);
                         }
                     }
                     System.out.flush();
                 }
             }
             if (trace != null) {
-                System.out.printf("%nplacement trace for chunk %d,%d "
-                        + "(decoration seed %d, count %d, index %d):%n",
-                        chunkX, chunkZ, decorationSeed, count, index);
-                trace.forEach(line -> System.out.println("  " + line));
+//                System.out.printf("%nplacement trace for chunk %d,%d "
+//                        + "(decoration seed %d, count %d, index %d):%n",
+//                        chunkX, chunkZ, decorationSeed, count, index);
+//                trace.forEach(line -> System.out.println("  " + line));
             }
         }
 
@@ -997,7 +1047,15 @@ public final class RegionSearcher {
         }
 
         private void runDirtBlobs(long decorationSeed, int chunkX, int chunkZ) {
-            OreBlob blob = new OreBlob(new OreBlob.Target() {
+
+            boolean target = chunkX == 1562154 && chunkZ == -477569;
+            target = false;
+
+            if (target) {
+                System.out.printf("==== %d %d ====\n", chunkX, chunkZ);
+            }
+
+            OreBlob blob = new OreBlob(chunkX, chunkZ, new OreBlob.Target() {
                 @Override
                 public boolean isNaturalStone(int x, int y, int z) {
                     // NATURAL_STONE is stone, granite, diorite and andesite; the
@@ -1027,7 +1085,13 @@ public final class RegionSearcher {
                 int x = chunkX * CHUNK + random.nextInt(CHUNK);
                 int z = chunkZ * CHUNK + random.nextInt(CHUNK);
                 int y = random.nextInt(256);
+//                if (target) {
+//                System.out.printf("location: %d %d %d\n", x, y, z);
+//                }
                 blob.place(random, x, y, z);
+            }
+            if (target) {
+                System.out.printf("END ==== %d %d ====\n", chunkX, chunkZ);
             }
         }
     }

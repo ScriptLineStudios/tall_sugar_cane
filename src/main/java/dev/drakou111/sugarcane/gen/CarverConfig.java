@@ -57,7 +57,7 @@ public final class CarverConfig {
      */
     public static boolean isStartChunk(JavaRandom random, long levelSeed, int carverIndex,
                                        int startX, int startZ, float probability) {
-        random.setLargeFeatureSeed(levelSeed + carverIndex, startX, startZ);
+        long fs = random.setLargeFeatureSeed(levelSeed + carverIndex, startX, startZ);
         return random.nextFloat() <= probability;
     }
 

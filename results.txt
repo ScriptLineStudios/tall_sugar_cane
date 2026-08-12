@@ -1,0 +1,17 @@
+HIT seed 41273705236158  x=-3323517 y=18 z=18778246  height 14  biome 46  chunk -207720,1173640  spawn ~-56,136 (~19069945 blocks away)
+  height 14 at -3323517,18,18778246 standing on dirt
+running on 1 threads
+HIT seed 219402627093694  x=-5575949 y=18 z=27786582  height 7  biome 0  chunk -348497,1736661  spawn ~88,-136 (~28340675 blocks away)
+HIT seed 72809594481790  x=-9487661 y=18 z=-1839242  height 14  biome 0  chunk -592979,-114953  spawn ~8,8 (~9664300 blocks away)
+  height 14 at -9487661,18,-1839242 standing on dirt
+HIT seed 2570165770414  x=3118723 y=18 z=-7405098  height 10  biome 48  chunk 194920,-462819  spawn ~-88,-72 (~8035010 blocks away)
+HIT seed 213214585192670  x=27438355 y=18 z=8659062  height 7  biome 24  chunk 1714897,541191  spawn ~184,-232 (~28772150 blocks away)
+HIT seed 208814839627502  x=-22705645 y=18 z=-12198298  height 7  biome 24  chunk -1419103,-762394  spawn ~-104,-136 (~25774731 blocks away)
+HIT seed 109921015926254  x=-4657437 y=18 z=-23396170  height 7  biome 0  chunk -291090,-1462261  spawn ~-168,-200 (~23855011 blocks away)
+HIT seed 118062024741278  x=2648995 y=18 z=-2668602  height 7  biome 46  chunk 165562,-166788  spawn ~-248,-200 (~3760167 blocks away)
+HIT seed 41273705236158  x=-3323517 y=18 z=18778246  height 14  biome 46  chunk -207720,1173640  spawn ~-56,136 (~19069945 blocks away)
+  height 14 at -3323517,18,18778246 standing on dirt
+HIT seed 107589990068558  x=12175827 y=18 z=14463846  height 10  biome 44  chunk 760989,903990  spawn ~216,-72 (~18906359 blocks away)
+HIT seed 93765895111694  x=1919059 y=18 z=-18160154  height 10  biome 50  chunk 119941,-1135010  spawn ~-24,-248 (~18261026 blocks away)
+Execution time: 1773614 ms
+

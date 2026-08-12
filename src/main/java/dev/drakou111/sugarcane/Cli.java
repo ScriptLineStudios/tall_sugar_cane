@@ -102,21 +102,9 @@ public final class Cli {
     };
 
     public static void main(String[] args) throws Exception {
-        Desktop desktop = Desktop.getDesktop();
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")
                 || args[0].equals("help")) {
             usage();
-            return;
-        }
-
-        if (args[0].equals("-s") || args[0].equals("--sheet")) {
-            try {
-                URI oURL = new URI("https://docs.google.com/spreadsheets/d/1dhSnz-PFo3yl5uOFxqGmzDXg2O7JHACnqSlmLw_1Ang/edit?usp=sharing");
-                desktop.browse(oURL);
-                return;
-            } catch (URISyntaxException e) {
-                e.printStackTrace();
-            }
             return;
         }
 
@@ -146,33 +134,34 @@ public final class Cli {
             }
         }
 
-        Scanner scanner1 = new Scanner(System.in);
-        System.out.print("Do you want to report your finds to the spreadsheet, which you can open by doing java -jar sugarcane.jar -s? (y/n): ");
-        String report = scanner1.nextLine().trim();
-        if (report.equals("y") || report.equals("yes") || report.equals("Yes") || report.equals("Y")) {
-            reportFinds = true;
-        } else {
-            reportFinds = false;
-            return;
-        }
+//        Scanner scanner1 = new Scanner(System.in);
+//        System.out.print("Do you want to report your finds to the spreadsheet, which you can open by doing java -jar sugarcane.jar -s? (y/n): ");
+//        String report = scanner1.nextLine().trim();
+//        if (report.equals("y") || report.equals("yes") || report.equals("Yes") || report.equals("Y")) {
+//            reportFinds = true;
+//        } else {
+//            reportFinds = false;
+//            return;
+//        }
+        reportFinds = false;
 
-        if (reporterUsername == null || reporterUsername.trim().isEmpty()) {
-            Scanner scanner = new Scanner(System.in);
-            System.out.print("Enter your username for reporting finds: ");
-            reporterUsername = scanner.nextLine().trim();
-
-            if (reporterUsername.isEmpty()) {
-                reporterUsername = "Anonymous";
-            }
-
-            props.setProperty("username", reporterUsername);
-            try (FileOutputStream out = new FileOutputStream(configFile)) {
-                props.store(out, "Sugarcane Finder User Configuration");
-                System.out.println("Saved username to " + CONFIG_FILE);
-            } catch (IOException e) {
-                System.err.println("Failed to save config file: " + e.getMessage());
-            }
-        }
+//        if (reporterUsername == null || reporterUsername.trim().isEmpty()) {
+//            Scanner scanner = new Scanner(System.in);
+//            System.out.print("Enter your username for reporting finds: ");
+//            reporterUsername = scanner.nextLine().trim();
+//
+//            if (reporterUsername.isEmpty()) {
+//                reporterUsername = "Anonymous";
+//            }
+//
+//            props.setProperty("username", reporterUsername);
+//            try (FileOutputStream out = new FileOutputStream(configFile)) {
+//                props.store(out, "Sugarcane Finder User Configuration");
+//                System.out.println("Saved username to " + CONFIG_FILE);
+//            } catch (IOException e) {
+//                System.err.println("Failed to save config file: " + e.getMessage());
+//            }
+//        }
     }
 
     public static String getReporterUsername() {

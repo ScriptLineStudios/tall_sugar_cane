@@ -35,7 +35,16 @@ public final class OreBlob {
     private final Target target;
     private final int size;
 
+    int chunkX, chunkZ;
+
     public OreBlob(Target target, int size) {
+        this.target = target;
+        this.size = size;
+    }
+
+    public OreBlob(int chunkX, int chunkZ, Target target, int size) {
+        this.chunkX = chunkX;
+        this.chunkZ = chunkZ;
         this.target = target;
         this.size = size;
     }
@@ -154,6 +163,9 @@ public final class OreBlob {
                         }
                         visited.set(index);
                         if (target.isNaturalStone(px, py, pz)) {
+                            if (px == 2303 && py == 18 && pz == 469) {
+                                System.out.printf("placing dirt at %d %d %d\n", px >> 4, py, pz >> 4);
+                            }
                             target.setDirt(px, py, pz);
                             placed++;
                         }
