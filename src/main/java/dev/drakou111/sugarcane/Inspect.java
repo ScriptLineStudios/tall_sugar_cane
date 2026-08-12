@@ -1,9 +1,7 @@
 package dev.drakou111.sugarcane;
 
 import dev.drakou111.sugarcane.gen.CanyonCarver;
-import dev.drakou111.sugarcane.gen.Carver;
 import dev.drakou111.sugarcane.gen.CarverConfig;
-import dev.drakou111.sugarcane.gen.CaveCarver;
 import dev.drakou111.sugarcane.rng.JavaRandom;
 import dev.drakou111.sugarcane.world.ArrayWorld;
 import dev.drakou111.sugarcane.world.Blocks;
@@ -65,18 +63,16 @@ public final class Inspect {
         int chunkX = tx >> 4, chunkZ = tz >> 4;
 
         int radius = 1;
-        RegionSearcher.Stats stats = new RegionSearcher.Stats();
-        RegionSearcher.Worker worker = new RegionSearcher.Worker(5, false, 0, stats, radius);
+        RegionSearcher.Worker worker = new RegionSearcher.Worker(5, radius);
         worker.prepare(seed);
         RegionSearcher.traceChunkX = chunkX;
         RegionSearcher.traceChunkZ = chunkZ;
-        // Regions are aligned to multiples of REGION starting from -radius, and the
-        // searcher uses radius 32, so the grid is offset by -32.
-        int originX = alignRegion(chunkX, radius);
-        int originZ = alignRegion(chunkZ, radius);
-//        System.out.printf("seed %d, target %d,%d,%d (chunk %d,%d) in region %d,%d%n",
-//                seed, tx, ty, tz, chunkX, chunkZ, originX, originZ);
+
+        int originX = chunkX;
+        int originZ = chunkZ;
+
         worker.searchRegion2(originX, originZ, chunkX, chunkZ, worldSeed);
+        if (true) return;
 
         ArrayWorld world = worker.world;
 //        System.out.printf("%ncane columns within 6 blocks:%n");
@@ -98,73 +94,6 @@ public final class Inspect {
                                 x == tx && y == ty && z == tz ? "   <== target" : "");
                         System.out.printf("        dx: %d dz: %d\n", modX, modZ);
 //                        }
-                    }
-                }
-            }
-        }
-        if (!any) {
-//            System.out.println("  none - the simulator does not reproduce this by itself");
-        }
-//
-//        System.out.printf("%nwater beside the soil at %d,%d,%d: %s%n", tx, ty - 1, tz,
-//                describeNeighbours(world, tx, ty - 1, tz));
-//        System.out.printf("water beside the block above:      %s%n",
-//                describeNeighbours(world, tx, ty + 1, tz));
-//
-//        System.out.printf("%nslice at z=%d, x from %d to %d (y downwards)%n",
-//                tz, tx - 8, tx + 8);
-//        System.out.print("      ");
-//        for (int x = tx - 8; x <= tx + 8; x++) {
-//            System.out.print(Math.abs(x) % 10);
-//        }
-//        System.out.println();
-//        for (int y = Math.min(ArrayWorld.HEIGHT - 1, ty + 10); y >= Math.max(0, ty - 10); y--) {
-//            System.out.printf("y=%3d ", y);
-//            for (int x = tx - 8; x <= tx + 8; x++) {
-//                System.out.print(GLYPH[world.getBlock(x, y, tz)]);
-//            }
-//            System.out.println(y == ty ? "  <== target y" : "");
-//        }
-//        System.out.println("      . air  # stone  ~ water  v gravel  d dirt  s sand  "
-//                + "g grass  C cane");
-    }
-
-    public static void search(long worldSeed, int tx, int tz) {
-        long seed = worldSeed;
-        tx = tx >> 4 << 4;
-        int ty = 20;
-        tz = tz >> 4 << 4;
-        int chunkX = tx >> 4, chunkZ = tz >> 4;
-
-        int radius = 3;
-        RegionSearcher.Stats stats = new RegionSearcher.Stats();
-        RegionSearcher.Worker worker = new RegionSearcher.Worker(5, false, 0, stats, radius);
-        worker.prepare(seed);
-        RegionSearcher.traceChunkX = chunkX;
-        RegionSearcher.traceChunkZ = chunkZ;
-        // Regions are aligned to multiples of REGION starting from -radius, and the
-        // searcher uses radius 32, so the grid is offset by -32.
-        int originX = alignRegion(chunkX, radius);
-        int originZ = alignRegion(chunkZ, radius);
-//        System.out.printf("seed %d, target %d,%d,%d (chunk %d,%d) in region %d,%d%n",
-//                seed, tx, ty, tz, chunkX, chunkZ, originX, originZ);
-        worker.searchRegion(originX, originZ, chunkX, chunkZ, worldSeed);
-
-        ArrayWorld world = worker.world;
-//        System.out.printf("%ncane columns within 6 blocks:%n");
-        boolean any = false;
-        for (int x = tx - 16; x <= tx + 16; x++) {
-            for (int z = tz - 16; z <= tz + 16; z++) {
-                for (int y = Math.max(1, ty - 8); y <= ty + 8; y++) {
-                    int height = world.caneHeightAt(x, y, z);
-                    if (height == 0) {
-                        continue;
-                    }
-                    any = true;
-                    if (height >= 14) {
-                        System.out.printf("  height %d at %d,%d,%d standing on %s%s%n",
-                                height, x, y, z, name(world.getBlock(x, y - 1, z)),
-                                x == tx && y == ty && z == tz ? "   <== target" : "");
                     }
                 }
             }
@@ -246,8 +175,9 @@ public final class Inspect {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        search2(87402702807281L, -15513917,16281294);
-//        System.exit(1);
+        //search2(87402702807281L, -15513917,16281294);
+        search2(12345, 143*16,29*16);
+        System.exit(1);
 
         int threads = 28;
         String inputFile = "/home/scriptline/gaming/new/seeds_out.txt";

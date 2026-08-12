@@ -119,7 +119,8 @@ public final class ArrayWorld implements BlockView {
     @Override
     public byte getBlock(int x, int y, int z) {
         if (y < 0 || y >= HEIGHT || !inside(x, z)) {
-            return Blocks.SOLID;
+            throw new RuntimeException("bad coords");
+            //return Blocks.SOLID;
         }
         return blocks[columnIndex(x, z) * HEIGHT + y];
     }
@@ -267,30 +268,5 @@ public final class ArrayWorld implements BlockView {
             bottom--;
         }
         return caneHeightAt(x, bottom, z);
-    }
-
-    /** The tallest contiguous sugar cane column anywhere in the window. */
-    public int tallestCane() {
-        int best = 0;
-        for (int x = minX; x < minX + sizeX; x++) {
-            for (int z = minZ; z < minZ + sizeZ; z++) {
-                for (int y = 0; y < HEIGHT; y++) {
-                    best = Math.max(best, caneHeightAt(x, y, z));
-                }
-            }
-        }
-        return best;
-    }
-
-    public void clearCane() {
-        for (int i = 0; i < blocks.length; i++) {
-            if (blocks[i] == Blocks.SUGAR_CANE) {
-                blocks[i] = Blocks.AIR;
-            }
-        }
-        Arrays.fill(heightmap, (short) 0);
-        for (int col = 0; col < sizeX * sizeZ; col++) {
-            recomputeColumn(col, HEIGHT - 1);
-        }
     }
 }
