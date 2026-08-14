@@ -99,7 +99,7 @@ public final class CanyonCarver extends Carver {
         double bestDist = 99999999.0;
         for (Coord c : coords) {
 //            System.out.printf("%f %f %f -> %f %f %f\n", c.x, c.y, c.z, (float)chunkX, 20.0, (float)chunkZ);
-            double dist = Math.sqrt(Math.pow((c.x - chunkX), 2) + Math.pow((c.y - 18.0), 2) + Math.pow((c.z - chunkZ), 2));
+            double dist = Math.sqrt(Math.pow((c.x - chunkX), 2) + Math.pow((c.y - 20.0), 2) + Math.pow((c.z - chunkZ), 2));
             bestDist = Math.min(dist, bestDist);
         }
         return bestDist;

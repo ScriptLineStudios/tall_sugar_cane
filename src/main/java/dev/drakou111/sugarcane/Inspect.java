@@ -11,11 +11,14 @@ import dev.drakou111.sugarcane.world.Blocks;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static dev.drakou111.sugarcane.RegionSearcher.SEA;
+import static dev.drakou111.sugarcane.Searcher.runDirtBlobs;
+import static dev.drakou111.sugarcane.Searcher.runDirtBlobsTest;
 
 /**
  * Regenerates one region and prints what the simulator thinks is at a position:
@@ -81,8 +84,8 @@ public final class Inspect {
         ArrayWorld world = worker.world;
 //        System.out.printf("%ncane columns within 6 blocks:%n");
         boolean any = false;
-        for (int x = tx - 16; x <= tx + 16; x++) {
-            for (int z = tz - 16; z <= tz + 16; z++) {
+        for (int x = tx; x <= tx + 16; x++) {
+            for (int z = tz; z <= tz + 32; z++) {
                 for (int y = Math.max(1, ty - 8); y <= ty + 8; y++) {
                     int height = world.caneHeightAt(x, y, z);
                     if (height == 0) {
@@ -92,12 +95,16 @@ public final class Inspect {
                     if (height >= 4) {
                         int modX = x - (chunkX << 4);
                         int modZ = z - ((chunkZ + 1) << 4);
-//                        if (modX == 3 && modZ == -2) {
-                        System.out.printf("  \n worldSeed: %d height %d at %d,%d,%d standing on %s%s%n",
-                                worldSeed, height, x, y, z, name(world.getBlock(x, y - 1, z)),
-                                x == tx && y == ty && z == tz ? "   <== target" : "");
-                        System.out.printf("        dx: %d dz: %d\n", modX, modZ);
-//                        }
+                        if (modX == 3 && modZ == -2) {
+                            System.out.printf("  \n worldSeed: %d height %d at %d,%d,%d standing on %s%s%n",
+                                    worldSeed, height, x, y, z, name(world.getBlock(x, y - 1, z)),
+                                    x == tx && y == ty && z == tz ? "   <== target" : "");
+
+                            JavaRandom random = new JavaRandom();
+                            System.out.printf("        top decor: %d\n", random.setDecorationSeed(worldSeed, chunkX << 4, chunkZ << 4) & ((1L << 48)-1));
+                            System.out.printf("        bottom decor: %d\n", random.setDecorationSeed(worldSeed, chunkX << 4, (chunkZ + 1) << 4) & ((1L << 48) - 1));
+                            System.out.printf("        dx: %d dz: %d\n", modX, modZ);
+                        }
                     }
                 }
             }
@@ -211,7 +218,7 @@ public final class Inspect {
                 }
             }
         }
-        if (min > 20.0f) {
+        if (min > 25.0f) {
             return false;
         }
 
@@ -224,7 +231,7 @@ public final class Inspect {
                 }
             }
         }
-        return !(min > 20.0f);
+        return !(min > 25.0f);
     }
 
     private static String formatDuration(long seconds) {
@@ -245,12 +252,152 @@ public final class Inspect {
         return String.format("%dh %02dm", hours, minutes);
     }
 
+    record TestCase(long seed, Searcher.Point expected) {}
+
+    static TestCase[] tests = {
+            new TestCase(139085984632088L, new Searcher.Point(3, 18, 13)),
+            new TestCase(139085984632088L, new Searcher.Point(3, 18, 13)),
+            new TestCase(48084157353526L, new Searcher.Point(1, 17, 4)),
+            new TestCase(47870588363913L, new Searcher.Point(1, 17, 4)),
+            new TestCase(191099825957652L, new Searcher.Point(1, 17, 4)),
+            new TestCase(33029914101426L, new Searcher.Point(7, 25, 14)),
+            new TestCase(12688162769877L, new Searcher.Point(7, 25, 14)),
+            new TestCase(52430632941232L, new Searcher.Point(7, 25, 14)),
+            new TestCase(48084157353526L, new Searcher.Point(1, 17, 4)),
+            new TestCase(47870588363913L, new Searcher.Point(1, 17, 4)),
+            new TestCase(191099825957652L, new Searcher.Point(1, 17, 4)),
+            new TestCase(102436839828115L, new Searcher.Point(2, 34, 3)),
+            new TestCase(154772930895857L, new Searcher.Point(3, 24, 14)),
+            new TestCase(154772930895857L, new Searcher.Point(3, 24, 14)),
+            new TestCase(71794945855396L, new Searcher.Point(13, 24, 13)),
+            new TestCase(36549428759679L, new Searcher.Point(13, 24, 13)),
+            new TestCase(92900304525722L, new Searcher.Point(13, 24, 13)),
+            new TestCase(224900775823927L, new Searcher.Point(4, 20, 2)),
+            new TestCase(246621747357458L, new Searcher.Point(4, 20, 2)),
+            new TestCase(244464738914485L, new Searcher.Point(4, 20, 2)),
+            new TestCase(224099667894800L, new Searcher.Point(4, 20, 2)),
+            new TestCase(136000215216571L, new Searcher.Point(4, 20, 2)),
+            new TestCase(71794945855396L, new Searcher.Point(13, 24, 13)),
+            new TestCase(36549428759679L, new Searcher.Point(13, 24, 13)),
+            new TestCase(92900304525722L, new Searcher.Point(13, 24, 13)),
+            new TestCase(84266500021597L, new Searcher.Point(4, 17, 3)),
+            new TestCase(180466033996664L, new Searcher.Point(4, 17, 3)),
+            new TestCase(87305171594819L, new Searcher.Point(4, 17, 3)),
+            new TestCase(27291829008302L, new Searcher.Point(4, 17, 3)),
+            new TestCase(257335651092833L, new Searcher.Point(4, 17, 3)),
+            new TestCase(109233106211261L, new Searcher.Point(4, 17, 3)),
+            new TestCase(132009577757784L, new Searcher.Point(7, 27, 13)),
+            new TestCase(256319899267491L, new Searcher.Point(7, 27, 13)),
+            new TestCase(84519979013006L, new Searcher.Point(7, 27, 13)),
+            new TestCase(59916038374310L, new Searcher.Point(7, 27, 13)),
+            new TestCase(83253967530315L, new Searcher.Point(3, 33, 10)),
+            new TestCase(27562867256502L, new Searcher.Point(12, 33, 5)),
+            new TestCase(143116035223817L, new Searcher.Point(12, 33, 5)),
+            new TestCase(174237072833879L, new Searcher.Point(12, 33, 5)),
+            new TestCase(185439715941298L, new Searcher.Point(3, 29, 6)),
+            new TestCase(183468884224668L, new Searcher.Point(3, 29, 6)),
+            new TestCase(227674892660983L, new Searcher.Point(13, 21, 6)),
+            new TestCase(82314596958041L, new Searcher.Point(13, 21, 6)),
+            new TestCase(71222455162245L, new Searcher.Point(3, 22, 6)),
+            new TestCase(65508995851424L, new Searcher.Point(6, 17, 3)),
+            new TestCase(198401809419976L, new Searcher.Point(6, 17, 3)),
+            new TestCase(109126945428627L, new Searcher.Point(12, 9, 5)),
+            new TestCase(38501139390519L, new Searcher.Point(12, 9, 5)),
+            new TestCase(24779057486785L, new Searcher.Point(4, 22, 3)),
+            new TestCase(13867601609268L, new Searcher.Point(8, 10, 3)),
+            new TestCase(139354953263823L, new Searcher.Point(1, 28, 9)),
+            new TestCase(250573657863274L, new Searcher.Point(1, 28, 9)),
+            new TestCase(138704512176091L, new Searcher.Point(1, 28, 9)),
+            new TestCase(264398348638470L, new Searcher.Point(12, 29, 5)),
+            new TestCase(154772930895857L, new Searcher.Point(12, 29, 5)),
+            new TestCase(60979909433358L, new Searcher.Point(3, 24, 14)),
+            new TestCase(247652606761537L, new Searcher.Point(11, 18, 3)),
+            new TestCase(171830845845036L, new Searcher.Point(11, 18, 3)),
+            new TestCase(6802643023237L, new Searcher.Point(11, 18, 3)),
+            new TestCase(226253129974944L, new Searcher.Point(9, 31, 3)),
+            new TestCase(103063413032523L, new Searcher.Point(9, 31, 3)),
+            new TestCase(256404005526461L, new Searcher.Point(9, 31, 3)),
+            new TestCase(224182730391128L, new Searcher.Point(3, 30, 8)),
+            new TestCase(57199771089419L, new Searcher.Point(3, 30, 8)),
+            new TestCase(154772930895857L, new Searcher.Point(2, 22, 12)),
+            new TestCase(183468884224668L, new Searcher.Point(3, 24, 14)),
+            new TestCase(227674892660983L, new Searcher.Point(13, 21, 6)),
+            new TestCase(223192501093162L, new Searcher.Point(13, 21, 6)),
+            new TestCase(29775300298829L, new Searcher.Point(12, 14, 13)),
+            new TestCase(38501139390519L, new Searcher.Point(12, 14, 13)),
+            new TestCase(84266500021597L, new Searcher.Point(4, 22, 3)),
+            new TestCase(180466033996664L, new Searcher.Point(4, 17, 3)),
+            new TestCase(87305171594819L, new Searcher.Point(4, 17, 3)),
+            new TestCase(27291829008302L, new Searcher.Point(4, 17, 3)),
+            new TestCase(257335651092833L, new Searcher.Point(4, 17, 3)),
+            new TestCase(224900775823927L, new Searcher.Point(4, 17, 3)),
+            new TestCase(246621747357458L, new Searcher.Point(4, 20, 2)),
+            new TestCase(244464738914485L, new Searcher.Point(4, 20, 2)),
+            new TestCase(224099667894800L, new Searcher.Point(4, 20, 2)),
+            new TestCase(136000215216571L, new Searcher.Point(4, 20, 2)),
+            new TestCase(57199771089419L, new Searcher.Point(4, 20, 2)),
+            new TestCase(84266500021597L, new Searcher.Point(2, 22, 12)),
+            new TestCase(180466033996664L, new Searcher.Point(4, 17, 3)),
+            new TestCase(87305171594819L, new Searcher.Point(4, 17, 3)),
+            new TestCase(27291829008302L, new Searcher.Point(4, 17, 3)),
+            new TestCase(257335651092833L, new Searcher.Point(4, 17, 3)),
+            new TestCase(60979909433358L, new Searcher.Point(4, 17, 3)),
+            new TestCase(247652606761537L, new Searcher.Point(11, 18, 3)),
+            new TestCase(171830845845036L, new Searcher.Point(11, 18, 3)),
+            new TestCase(71222455162245L, new Searcher.Point(11, 18, 3)),
+            new TestCase(65508995851424L, new Searcher.Point(6, 17, 3)),
+            new TestCase(139085984632088L, new Searcher.Point(3, 18, 13)),
+            new TestCase(261866202537415L, new Searcher.Point(3, 18, 13)),
+            new TestCase(27418593171810L, new Searcher.Point(13, 6, 4)),
+            new TestCase(208488772694469L, new Searcher.Point(13, 6, 4)),
+            new TestCase(87583257322508L, new Searcher.Point(13, 6, 4)),
+            new TestCase(28242491721831L, new Searcher.Point(8, 34, 12)),
+            new TestCase(231260033888898L, new Searcher.Point(8, 34, 12)),
+            new TestCase(276809256282522L, new Searcher.Point(8, 34, 12)),
+            new TestCase(29771798785213L, new Searcher.Point(12, 32, 5)),
+            new TestCase(38931394541442L, new Searcher.Point(12, 32, 5)),
+            new TestCase(223192501093162L, new Searcher.Point(2, 35, 11)),
+            new TestCase(29775300298829L, new Searcher.Point(12, 14, 13)),
+            new TestCase(71222455162245L, new Searcher.Point(12, 14, 13)),
+            new TestCase(65508995851424L, new Searcher.Point(6, 17, 3)),
+            new TestCase(174237072833879L, new Searcher.Point(6, 17, 3)),
+            new TestCase(185439715941298L, new Searcher.Point(3, 29, 6)),
+            new TestCase(109233106211261L, new Searcher.Point(3, 29, 6)),
+            new TestCase(132009577757784L, new Searcher.Point(7, 27, 13)),
+            new TestCase(256319899267491L, new Searcher.Point(7, 27, 13)),
+            new TestCase(84519979013006L, new Searcher.Point(7, 27, 13)),
+            new TestCase(183468884224668L, new Searcher.Point(7, 27, 13)),
+            new TestCase(227674892660983L, new Searcher.Point(13, 21, 6)),
+            new TestCase(13867601609268L, new Searcher.Point(13, 21, 6)),
+            new TestCase(139354953263823L, new Searcher.Point(1, 28, 9)),
+            new TestCase(250573657863274L, new Searcher.Point(1, 28, 9)),
+            new TestCase(82314596958041L, new Searcher.Point(1, 28, 9)),
+            new TestCase(109233106211261L, new Searcher.Point(3, 22, 6)),
+            new TestCase(132009577757784L, new Searcher.Point(7, 27, 13)),
+            new TestCase(256319899267491L, new Searcher.Point(7, 27, 13)),
+            new TestCase(84519979013006L, new Searcher.Point(7, 27, 13))
+    };
+
     public static void main(String[] args) throws IOException, InterruptedException {
-        search2(87402702807281L, -15513917,16281294);
+        // 88249931
+//        try (BufferedReader br = new BufferedReader(new FileReader("/home/scriptline/programming/seedfinding/tallsugarcane/seeds.txt"))) {
+//            while (true) {
+//                String line = br.readLine();
+//                Long seed = Long.parseLong(line);
+//                search2(seed, -6334957,-23472658);
+////                System.out.println(line);
+//                if (line == null) {
+//                    break;
+//                }
+//            }
+//        }
+//        System.exit(1);
+        search2(4731426242008324673L, -6334957,-23472658);
 //        System.exit(1);
 
         int threads = 28;
-        String inputFile = "/home/scriptline/gaming/new/seeds_out.txt";
+//        String inputFile = "/home/scriptline/gaming/newnew/seeds_out.txt";
+        String inputFile = "/home/scriptline/programming/seedfinding/tallsugarcane/19.txt";
 
         System.out.printf("Running on %d worker threads%n", threads);
 
@@ -266,6 +413,7 @@ public final class Inspect {
                 total++;
             }
         }
+//        total -= 88249931;
 
         System.out.printf("Total seeds: %,d%n", total);
 
@@ -284,11 +432,15 @@ public final class Inspect {
          * Reads the file and continuously feeds the workers.
          */
         Thread producer = new Thread(() -> {
+            int count = 0;
             try (BufferedReader br = new BufferedReader(new FileReader(inputFile))) {
                 String line;
 
                 while ((line = br.readLine()) != null) {
+//                    count++;
+//                    if (count >= 88249931) {
                     queue.put(line);
+//                    }
                 }
 
                 producerFinished.set(true);
@@ -327,7 +479,8 @@ public final class Inspect {
                             int z = Integer.parseInt(parts[2]);
 
                             if (isValid(seed, x >> 4, z >> 4)) {
-                                search2(seed, (x >> 4 << 4), (z >> 4 << 4) - 16);
+                                search2(seed, (x >> 4 << 4), (z >> 4 << 4));
+//                                search2(seed, x, z);
                             }
 
                         } catch (Exception e) {

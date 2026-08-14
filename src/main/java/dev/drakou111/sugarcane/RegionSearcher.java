@@ -512,19 +512,21 @@ public final class RegionSearcher {
 //            }
 
             // 19 chunk
-//            buildChunk(targetChunkX, targetChunkZ);
-//            runCarvers(targetChunkX, targetChunkZ);
+
+//            buildChunk(targetChunkX, targetChunkZ + 1);
+//            runCarvers(targetChunkX, targetChunkZ + 1);
+
+            buildChunk(targetChunkX, targetChunkZ);
+            runCarvers(targetChunkX, targetChunkZ);
+            decorate(targetChunkX, targetChunkZ, worldSeed, true);
+
+            //            decorate(targetChunkX, targetChunkZ, worldSeed, false);
 
             // dirt chunk
-            buildChunk(targetChunkX, targetChunkZ + 1);
-            runCarvers(targetChunkX, targetChunkZ + 1);
-
-            // dirt chunk decorate
-            decorate(targetChunkX, targetChunkZ + 1, worldSeed, true);
+//            decorate(targetChunkX, targetChunkZ + 1, worldSeed, true);
 
             stats.chunksSearched.addAndGet(0);
         }
-
         void searchRegion(int chunkX0, int chunkZ0, int targetChunkX, int targetChunkZ, long worldSeed) {
             regionChunkX = chunkX0;
             regionChunkZ = chunkZ0;
@@ -742,7 +744,7 @@ public final class RegionSearcher {
             // The carver list belongs to the biome at the GENERATING chunk corner,
             // not to the start chunk's.
             int cornerBiome = BiomeIds.noiseGen(biomes, chunkX * 4, chunkZ * 4);
-            boolean ocean = BiomeSourceValidator.isOcean(cornerBiome);
+            boolean ocean = true; //BiomeSourceValidator.isOcean(cornerBiome);
 
             Carver.Target airTarget = new Carver.Target() {
                 @Override
@@ -852,14 +854,16 @@ public final class RegionSearcher {
         }
 
         /** UNDERGROUND_ORES then VEGETAL_DECORATION for one chunk, as the game does. */
-        private void decorate(int chunkX, int chunkZ, long worldSeed, boolean lazy) {
+        private void decorate(int chunkX, int chunkZ, long worldSeed, boolean doCanes) {
             world.setDecoratingChunk(chunkX, chunkZ);
             long decorationSeed = random.setDecorationSeed(seed, chunkX * CHUNK, chunkZ * CHUNK);
-            if (lazy) {
-//                System.out.printf("%d %d -> %d\n", chunkX, chunkZ, decorationSeed & ((1L << 48)-1));
-            }
+//            System.out.printf("%d %d -> %d\n", chunkX, chunkZ, decorationSeed & ((1L << 48)-1));
             runDirtBlobs(decorationSeed, chunkX, chunkZ);
             runDisks(decorationSeed, chunkX, chunkZ);
+            if (!doCanes) {
+                return;
+            }
+
             if (diagnose) {
                 int stackable = countGeometry(chunkX, chunkZ);
                 stats.countBiome(biomes.getBiomeForNoiseGen(
@@ -883,7 +887,7 @@ public final class RegionSearcher {
                     chunkX == traceChunkX && chunkZ == traceChunkZ
                             ? new java.util.ArrayList<>() : null;
 
-            for (SugarCaneFeature.Column c : SugarCaneFeature.place(world, decorationSeed, index, count, chunkX, chunkZ, true, trace, chunkX, chunkZ, worldSeed, lazy)) {
+            for (SugarCaneFeature.Column c : SugarCaneFeature.place(world, decorationSeed, index, count, chunkX, chunkZ, true, trace, chunkX, chunkZ, worldSeed, doCanes)) {
                 stats.caneColumns.incrementAndGet();
                 int height = world.caneRunThrough(c.x(), c.y(), c.z());
                 stats.tallest(height);

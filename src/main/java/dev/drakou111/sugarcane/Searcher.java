@@ -245,8 +245,29 @@ public final class Searcher {
         }
     }
 
-    private static void runDirtBlobs(ArrayWorld world, TerrainGenerator terrain,
-                                     long seed, int cx, int cz) {
+    static class Point {
+        int x;
+        int y;
+        int z;
+
+        public Point(int x, int y, int z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+    }
+
+    static Point runDirtBlobsTest(long decorationSeed) {
+        JavaRandom random = new JavaRandom();
+        random.setFeatureSeed(decorationSeed, 0, UNDERGROUND_ORES);
+        int x = random.nextInt(16);
+        int z = random.nextInt(16);
+        int y = random.nextInt(256);
+        return new Point(x, y, z);
+    }
+
+    static void runDirtBlobs(ArrayWorld world, TerrainGenerator terrain,
+                             long seed, int cx, int cz) {
         OreBlob blob = new OreBlob(new OreBlob.Target() {
             @Override
             public boolean isNaturalStone(int x, int y, int z) {

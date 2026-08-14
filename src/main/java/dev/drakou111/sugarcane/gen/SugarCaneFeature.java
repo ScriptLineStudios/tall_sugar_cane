@@ -97,6 +97,7 @@ public final class SugarCaneFeature {
                                      List<String> trace, int targetChunkX, int targetChunkZ, long worldSeed, boolean flag) {
         List<Column> placed = new ArrayList<>();
         JavaRandom random = new JavaRandom();
+        featureIndex = 5;
         random.setFeatureSeed(decorationSeed, featureIndex, VEGETAL_DECORATION);
         int originX = chunkX << 4;
         int originZ = chunkZ << 4;
@@ -129,9 +130,10 @@ public final class SugarCaneFeature {
             if (doubled <= 0) {
                 continue;
             }
-
+            doubled = 126;
 //            System.out.print("BOUND: %d\n", doubled);
             int y = random.nextInt(doubled);
+//            System.out.printf("    %d %d %d\n", dx, y, dz);
 //            System.out.printf("dx: %d dy: %d dz: %d bound: %d\n", dx, y, dz, doubled);
 //            System.out.printf("height = %d\n", doubled / 2);
             if (trace != null) {
@@ -165,6 +167,7 @@ public final class SugarCaneFeature {
                 int modX = px - (chunkX << 4);
                 int modZ = pz - (chunkZ << 4);
 
+                // 19 20 21 22 23 24
                 if (!canPlace(world, px, py, pz, requireWater, i, n)) {
                     continue;
                 }
@@ -202,6 +205,7 @@ public final class SugarCaneFeature {
 //                System.out.printf("%d %d -> %d %d %d %d %d\n", n, i, height, dx, dz, ox, oz);
 //                System.out.printf("px: %d py: %d pz: %d height: %d\n", px, py, pz, height);
                 for (int k = 0; k < height; k++) {
+//                    System.out.printf("block@%d %d %d = SUGARCANE\n");
                     world.setBlock(px, py + k, pz, Blocks.SUGAR_CANE);
                 }
                 if (trace != null) {
@@ -211,10 +215,7 @@ public final class SugarCaneFeature {
             }
 //            System.out.println("================");
         }
-        if (target) {
-//            System.out.printf("SUGAR END: %d %d\n", chunkX, chunkZ);
-        }
-//        System.out.println("CHUNK END");
+//        System.out.printf("SUGAR END: %d %d\n", chunkX, chunkZ);
         return placed;
     }
 
@@ -231,7 +232,17 @@ public final class SugarCaneFeature {
 //        if (n == 7 && i == 17) {
 //            System.out.printf("=> %d %d %d %d\n", x, y, z, world.getBlock(x, y - 1, z));
 //        }
+//        System.out.printf("%d %d %d\n", x, y, z);
+//        System.out.printf("    => %d\n", world.getBlock(x, y - 1, z));
+
+//        if (world.getBlock(x, y - 1, z) == Blocks.SUGAR_CANE) {
+//            return true;
+//        }
+//
+//
+
         if (!world.isAir(x, y, z)) {
+//            System.out.printf("failed because of air, block = %d\n", world.getBlock(x, y, z));
 //            if (n == 1 && i == 5) {
 //                byte below = world.getBlock(x, y - 1, z);
 //                return below == Blocks.SUGAR_CANE;
